@@ -112,7 +112,9 @@ function App() {
   return (
     <main>
       <nav className="nav">
-        <a href="#home" className="brand">Krisha & Joe</a>
+        <a href="#home" className="brand">
+          <img className="brandLogo" src={assetPath('header.png')} alt="Krisha & Joe" />
+        </a>
         <div className="navLinks">
           <a href="#details">Details</a>
           <a href="#rsvp">RSVP</a>
@@ -137,15 +139,6 @@ function App() {
       </section>
 
       <section id="details" className="section weddingInfo">
-        <div className="weddingInfoIntro">
-          <p className="eyebrow">A new forever starts here</p>
-          <h3>
-            We're so excited to gather our favorite people in one place.
-            Here are the key details for where and when we'll say "I do,"
-            so you can plan your trip and be part of the celebration.
-          </h3>
-        </div>
-
         <div className="eventDetailsGrid">
           <article className="eventDetail">
             <HeartHandshake className="eventIcon" size={62} strokeWidth={1.7} />
@@ -202,7 +195,10 @@ function App() {
 
       <section id="prewedding" className="section preWedding">
         <p className="eyebrow">Pre-Wedding Preview</p>
-        <h2>A glimpse of us before the big day</h2>
+          <p className="sectionLead">
+            A glimpse of us before the big day.
+          </p>
+          <br></br>
         <div className="videoFrame">
           <video controls playsInline preload="metadata">
             <source src={assetPath('prewedding_vid_preview_krisha_joe.mp4')} type="video/mp4" />
@@ -212,7 +208,10 @@ function App() {
       </section>
 
       <section id="gifts" className="section giftsWishes">
-        <h2>Gifts & Wishes</h2>
+        <p className="eyebrow">Gifts & Wishes</p>
+          <p className="sectionLead">
+           Your presence at our wedding is the greatest gift we could ask for.
+          </p>
         <div className="catPortraits" aria-label="Cookie, Biscuit, and S'mores">
           {CATS.map((cat, index) => (
             <button
@@ -227,10 +226,9 @@ function App() {
             </button>
           ))}
         </div>
-        <p className="giftMessage">Your presence at our wedding is the greatest gift we could ask for.</p>
-        <p className="giftEyebrow">
+        <p className="sectionLead giftNote">
           Should you wish to give us something more, monetary gifts would be
-          sincerely appreciated. <br></br> Our three babies have already volunteered to 
+          sincerely appreciated. Our three babies have already volunteered to 
           manage the funds.
         </p>
       </section>
