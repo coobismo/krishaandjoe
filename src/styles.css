@@ -96,14 +96,14 @@ main {
   padding-bottom: clamp(360px, 44vh, 560px);
   background:
     linear-gradient(
-      rgba(251, 247, 238, 0.68),
-      rgba(251, 247, 238, 0.26) 48%,
-      rgba(251, 247, 238, 0.1)
+      rgba(251, 247, 238, 0.36),
+      rgba(251, 247, 238, 0.12) 48%,
+      rgba(251, 247, 238, 0.02)
     ),
     url("/main_proposal.jpg");
   background-position: center bottom;
   background-repeat: no-repeat;
-  background-size: 100% auto;
+  background-size: cover;
 }
 
 .heroCard {
@@ -724,9 +724,9 @@ footer {
     padding-bottom: clamp(320px, 46vh, 450px);
     background:
       linear-gradient(
-        rgba(251, 247, 238, 0.78),
-        rgba(251, 247, 238, 0.22) 44%,
-        rgba(251, 247, 238, 0.04)
+        rgba(251, 247, 238, 0.46),
+        rgba(251, 247, 238, 0.14) 44%,
+        rgba(251, 247, 238, 0.02)
       ),
       url("/main_proposal.jpg");
     background-position: 52% bottom;
