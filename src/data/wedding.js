@@ -282,7 +282,7 @@ export const RSVP_COPY = {
   intro: 'We’d love to celebrate with you! Please let us know if you’ll be joining us by October 21, 2026.',
   alternate: 'If you prefer, you may also RSVP via text through our coordinator, Choi, at',
   contactNumber: '+63 917 123 4567',
-  alternateSuffix: 'Please include your name and the number of guests attending.',
+  alternateSuffix: 'Please include your names and that you will be attending Krisha and Joe’s wedding.',
   textareaPlaceholder: 'Dietary restrictions, song requests for cocktail hour or the after-party, well wishes, or anything else you’d like us to know.',
   successMessage: 'RSVP sent. Thank you!',
   endpointErrorMessage: 'We could not reach the RSVP sheet. Your response was saved in this browser; please try again.',
