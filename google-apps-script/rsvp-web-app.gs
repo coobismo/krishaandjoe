@@ -1,6 +1,14 @@
 const SPREADSHEET_ID = '10fyCAN4sg_NDr5q4zW5zjLiAMdTjrpai3dcO613waiw';
 const SHEET_NAME = '';
-const HEADERS = ['Submitted At', 'Name', 'Contact Number', 'Attendance', 'Guests', 'Message'];
+const HEADERS = [
+  'Submitted At',
+  'Name',
+  'Contact Number',
+  'Attendance',
+  'Guests',
+  'Additional Guest Names',
+  'Message',
+];
 
 function doPost(event) {
   const lock = LockService.getScriptLock();
@@ -18,6 +26,7 @@ function doPost(event) {
       payload.contactNumber || payload.phone || payload.email || '',
       formatAttendance(payload.attendance),
       payload.guests || '',
+      payload.additionalGuestNames || '',
       payload.message || '',
     ]);
 

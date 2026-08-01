@@ -9,8 +9,15 @@
   --line: rgba(31, 63, 102, 0.16);
   --shadow: 0 24px 80px rgba(31, 63, 102, 0.12);
   --nav-height: 66px;
+  --radius-lg: 24px;
+  --radius-md: 18px;
+  --section-y: clamp(72px, 9vw, 118px);
+  --section-x: clamp(20px, 6vw, 80px);
+  --content-wide: 980px;
+  --content-mid: 880px;
+  --content-narrow: 760px;
   --font-serif: "Cormorant Garamond", Georgia, "Times New Roman", serif;
-  --font-script: "Brittany Signature", "Snell Roundhand", "Brush Script MT", "Segoe Script", cursive;
+  --font-script: "Great Vibes", "Brittany Signature", "Snell Roundhand", "Brush Script MT", "Segoe Script", cursive;
   --font-body: "Poppins", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -27,11 +34,34 @@ body {
   background: var(--ivory);
   color: var(--ink);
   font-family: var(--font-body);
+  line-height: 1.5;
 }
 
 a {
   color: inherit;
   text-decoration: none;
+}
+
+.inlineTextLink {
+  color: var(--blue);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.inlineTextLink:hover,
+.inlineTextLink:focus-visible {
+  color: #18375b;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 main {
@@ -49,17 +79,22 @@ main {
   align-items: center;
   justify-content: space-between;
   min-height: var(--nav-height);
-  padding: 18px clamp(20px, 6vw, 80px);
+  padding: 12px clamp(18px, 3.5vw, 44px);
   background: rgba(251, 247, 238, 0.86);
   backdrop-filter: blur(14px);
   border-bottom: 1px solid var(--line);
 }
 
 .brand {
-  color: var(--blue);
-  font-family: var(--font-serif);
-  font-size: 1.25rem;
-  letter-spacing: 0.12em;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.brandLogo {
+  display: block;
+  width: clamp(154px, 16vw, 178px);
+  height: auto;
 }
 
 .navLinks {
@@ -70,7 +105,7 @@ main {
 }
 
 .section {
-  padding: clamp(64px, 9vw, 120px) clamp(20px, 6vw, 80px);
+  padding: var(--section-y) var(--section-x);
   scroll-margin-top: calc(var(--nav-height) + 16px);
 }
 
@@ -79,33 +114,40 @@ main {
   display: grid;
   align-items: start;
   justify-items: center;
-  padding-top: clamp(12px, 3vh, 34px);
-  padding-bottom: clamp(240px, 34vh, 420px);
+  padding-top: clamp(86px, 12vh, 138px);
+  padding-bottom: clamp(360px, 44vh, 560px);
   background:
     linear-gradient(
-      rgba(251, 247, 238, 0.68),
-      rgba(251, 247, 238, 0.26) 48%,
-      rgba(251, 247, 238, 0.1)
+      rgba(251, 247, 238, 0.36),
+      rgba(251, 247, 238, 0.12) 48%,
+      rgba(251, 247, 238, 0.02)
     ),
     url("/main_proposal.jpg");
-  background-position: 56% 38%;
+  background-position: center bottom;
   background-repeat: no-repeat;
   background-size: cover;
 }
 
 .heroCard {
-  width: min(880px, 100%);
-  padding: clamp(34px, 5vw, 62px) clamp(26px, 6vw, 78px);
+  width: min(760px, 100%);
+  padding: clamp(10px, 2vw, 22px) clamp(16px, 4vw, 40px);
   text-align: center;
-  background:
-    linear-gradient(rgba(255, 253, 248, 0.92), rgba(240, 231, 215, 0.88)),
-    var(--white);
-  border: 1px solid rgba(31, 63, 102, 0.18);
-  border-radius: 22px;
-  box-shadow:
-    0 22px 70px rgba(31, 63, 102, 0.2),
-    inset 0 0 0 1px rgba(255, 253, 248, 0.74);
-  animation: heroCardRise 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  animation: heroCardRise 1.65s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both;
+}
+
+.heroTitle,
+.hero .date,
+.hero .countdown {
+  text-shadow: 0 2px 18px rgba(255, 253, 248, 0.82);
+}
+
+.hero .secondary {
+  background: rgba(255, 253, 248, 0.74);
+  backdrop-filter: blur(8px);
 }
 
 @keyframes heroCardRise {
@@ -133,7 +175,7 @@ main {
 .eyebrow {
   margin: 0 0 14px;
   color: var(--blue);
-  font-size: 0.78rem;
+  font-size: 1.08rem;
   font-weight: 700;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -160,7 +202,7 @@ h1 {
   gap: 0;
   margin-bottom: 16px;
   font-family: var(--font-serif);
-  font-size: clamp(3rem, 7vw, 5.9rem);
+  font-size: clamp(2.75rem, 6.2vw, 5.05rem);
   font-weight: 600;
   line-height: 0.92;
 }
@@ -182,7 +224,8 @@ h1 {
 }
 
 h2 {
-  font-size: clamp(2.3rem, 6vw, 4.4rem);
+  margin-bottom: 24px;
+  font-size: clamp(2.35rem, 5.2vw, 4.1rem);
   line-height: 1;
 }
 
@@ -211,6 +254,7 @@ h2 {
   border: 1px solid var(--blue);
   border-radius: 999px;
   padding: 13px 24px;
+  line-height: 1;
   font-weight: 700;
   cursor: pointer;
   transition: background 180ms ease, color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
@@ -228,6 +272,22 @@ h2 {
 
 .secondary {
   color: var(--blue);
+}
+
+.button:not(:disabled):hover,
+.button:not(:disabled):focus-visible {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px rgba(31, 63, 102, 0.18);
+}
+
+.primary:not(:disabled):hover,
+.primary:not(:disabled):focus-visible {
+  background: #18375b;
+}
+
+.secondary:not(:disabled):hover,
+.secondary:not(:disabled):focus-visible {
+  background: rgba(31, 63, 102, 0.08);
 }
 
 .countdown {
@@ -257,7 +317,7 @@ h2 {
 }
 
 .weddingInfoIntro {
-  width: min(760px, 100%);
+  width: min(var(--content-narrow), 100%);
   margin: 0 auto clamp(48px, 7vw, 82px);
 }
 
@@ -265,16 +325,18 @@ h2 {
   margin-bottom: 12px;
 }
 
-.weddingInfoIntro h3 {
+.sectionLead {
+  max-width: var(--content-narrow);
+  margin: 0 auto;
   color: var(--blue);
   font-family: var(--font-body);
-  font-size: clamp(1.45rem, 2.8vw, 2.35rem);
+  font-size: clamp(1.12rem, 1.95vw, 1.42rem);
   font-weight: 500;
-  line-height: 1.12;
+  line-height: 1.7;
 }
 
 .eventDetailsGrid {
-  width: min(880px, 100%);
+  width: min(var(--content-mid), 100%);
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: clamp(36px, 10vw, 130px);
@@ -322,6 +384,75 @@ h2 {
   color: var(--muted);
 }
 
+.eventActions {
+  display: flex;
+  justify-content: center;
+}
+
+.eventActions .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 104px;
+}
+
+.directionPicker {
+  position: relative;
+}
+
+.directionButton svg {
+  flex: 0 0 auto;
+  transition: transform 160ms ease;
+}
+
+.directionPicker.isOpen .directionButton svg {
+  transform: rotate(180deg);
+}
+
+.directionMenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  z-index: 20;
+  display: grid;
+  gap: 6px;
+  width: max-content;
+  min-width: 156px;
+  padding: 8px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 18px 38px rgba(31, 63, 102, 0.18);
+  transform: translateX(-50%);
+}
+
+.directionOption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  color: var(--ink);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.directionOption:hover,
+.directionOption:focus-visible {
+  background: var(--blue-soft);
+  color: var(--blue);
+  outline: none;
+}
+
+.eventActions .appIcon {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  box-shadow: 0 1px 3px rgba(31, 63, 102, 0.16);
+}
+
 .button.compact {
   padding: 9px 24px;
   font-size: 0.84rem;
@@ -337,10 +468,12 @@ details {
   padding: 26px;
   background: var(--ivory);
   border: 1px solid var(--line);
-  border-radius: 24px;
+  border-radius: var(--radius-lg);
 }
 
 footer svg {
+  display: block;
+  flex: 0 0 auto;
   color: var(--blue);
 }
 
@@ -349,17 +482,17 @@ footer svg {
 }
 
 .preWedding h2 {
-  width: min(760px, 100%);
-  margin: 0 auto 30px;
+  width: min(var(--content-narrow), 100%);
+  margin: 0 auto clamp(26px, 4vw, 38px);
 }
 
 .videoFrame {
-  width: min(980px, 100%);
+  width: min(var(--content-wide), 100%);
   margin: 0 auto;
   padding: clamp(10px, 1.6vw, 16px);
   background: var(--ivory);
   border: 1px solid var(--line);
-  border-radius: 24px;
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
 }
 
@@ -368,8 +501,338 @@ footer svg {
   width: 100%;
   aspect-ratio: 16 / 9;
   background: var(--blue);
-  border-radius: 14px;
+  border-radius: var(--radius-md);
   object-fit: cover;
+}
+
+.websitePhotoSection {
+  --website-photo-height: clamp(360px, 56vw, 760px);
+  --website-photo-space-top: 48px;
+  --website-photo-space-bottom: 64px;
+  position: relative;
+  min-height: calc(
+    var(--website-photo-height) + var(--website-photo-space-top) + var(--website-photo-space-bottom)
+  );
+  overflow: hidden;
+  margin: 0;
+  padding: var(--website-photo-space-top) 0 var(--website-photo-space-bottom);
+  background: var(--white);
+}
+
+.websitePhotoSection::before {
+  content: "";
+  position: absolute;
+  inset: var(--website-photo-space-top) 0 var(--website-photo-space-bottom);
+  background-color: var(--blue);
+  background-image: var(--website-photo);
+  background-position: 35% center;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.dressCode {
+  padding-top: clamp(36px, 5vw, 64px);
+  padding-bottom: clamp(32px, 4vw, 56px);
+  background: var(--white);
+  color: var(--blue);
+  text-align: center;
+}
+
+.dressCode > .sectionLead {
+  margin-bottom: clamp(28px, 4vw, 44px);
+}
+
+.dressCodeInner {
+  width: min(820px, 100%);
+  margin: 0 auto;
+}
+
+.dressCodeHeader {
+  margin: 0 auto 42px;
+}
+
+.dressCodeHeader h2 {
+  margin-bottom: 14px;
+  color: var(--blue);
+  font-family: var(--font-serif);
+  font-size: clamp(2.35rem, 5.2vw, 4.1rem);
+  font-weight: 400;
+  line-height: 1;
+}
+
+.dressCodeHeader p {
+  width: min(var(--content-narrow), 100%);
+  margin: 0 auto;
+  color: var(--blue);
+  font-size: clamp(1.12rem, 1.95vw, 1.42rem);
+  font-weight: 500;
+  line-height: 1.7;
+}
+
+.dressCodeContent {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 42px;
+  align-items: start;
+}
+
+.attireSection {
+  display: grid;
+  gap: 10px;
+}
+
+.attireGuide {
+  width: min(480px, 100%);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  align-items: end;
+  margin: 0 auto;
+}
+
+.attireImage {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: clamp(310px, 40vw, 380px);
+  margin: 0 auto 18px;
+  object-fit: contain;
+}
+
+.attireItem:nth-child(2) .attireImage {
+  height: clamp(288px, 37vw, 352px);
+}
+
+.attireItem {
+  display: grid;
+  justify-items: center;
+  align-content: end;
+  min-width: 0;
+}
+
+.attireItem h3,
+.paletteGroup h3,
+.avoidGuide h3 {
+  margin: 0 0 8px;
+  color: var(--blue);
+  font-family: var(--font-serif);
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.attireItem p {
+  margin: 0;
+  color: var(--blue);
+  font-size: clamp(1rem, 1.55vw, 1.3rem);
+  font-weight: 500;
+}
+
+.attireNote {
+  margin: 0;
+  color: var(--blue);
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.paletteGuide {
+  width: 100%;
+  display: grid;
+  gap: 30px;
+}
+
+.paletteGroup {
+  display: grid;
+  gap: 14px;
+}
+
+.guestPaletteGroup {
+  margin-top: 14px;
+}
+
+.paletteTitleBold {
+  margin-bottom: 12px;
+  font-size: clamp(1.92rem, 3.8vw, 2.55rem);
+  font-weight: 800;
+}
+
+.swatchGrid {
+  display: grid;
+  justify-content: center;
+  gap: 12px 20px;
+}
+
+.sponsorsSwatches {
+  grid-template-columns: repeat(3, minmax(80px, 1fr));
+  gap: 12px 8px;
+  width: min(320px, 100%);
+  margin: 0 auto;
+}
+
+.guestSwatches {
+  grid-template-columns: repeat(5, minmax(78px, 1fr));
+  gap: 12px 8px;
+  width: min(460px, 100%);
+  margin: 0 auto;
+}
+
+.swatchItem {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  min-width: 0;
+  color: var(--blue);
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.colorSwatch {
+  display: block;
+  width: 74px;
+  height: 74px;
+  background: var(--swatch-color);
+  border: 1px solid rgba(31, 63, 102, 0.08);
+  border-radius: 50%;
+}
+
+.dressCodeNote,
+.avoidGuide p,
+.dressCodeSite {
+  margin: 0;
+  color: var(--blue);
+}
+
+.dressCodeNote {
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.avoidGuide {
+  display: grid;
+  gap: 4px;
+}
+
+.avoidGuide h3 {
+  margin-bottom: 0;
+}
+
+.avoidGuide p {
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.dressCodeSite {
+  margin-top: 34px;
+  font-family: var(--font-serif);
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.gratefulHearts {
+  padding-top: clamp(32px, 4vw, 56px);
+  background: var(--white);
+  color: var(--blue);
+  text-align: center;
+}
+
+.gratitudeHeader {
+  margin: 0 auto clamp(38px, 5vw, 58px);
+}
+
+.gratitudeHeader h2 {
+  margin: 0 auto 4px;
+  line-height: 0;
+}
+
+.gratitudeTitleImage {
+  display: block;
+  width: min(100%, 760px);
+  height: auto;
+  margin: 0 auto;
+}
+
+.gratitudeHeader p {
+  margin-bottom: 0;
+  color: var(--blue);
+  font-family: var(--font-serif);
+  font-size: clamp(1.25rem, 2.4vw, 1.7rem);
+  font-style: italic;
+  line-height: 1.2;
+}
+
+.gratitudeGroups,
+.gratitudePartyRows {
+  width: min(1040px, 100%);
+  margin: 0 auto;
+}
+
+.gratitudeGroups {
+  display: grid;
+  gap: clamp(20px, 3vw, 30px);
+}
+
+.gratitudeGroup,
+.gratitudeBlock {
+  display: grid;
+  gap: 12px;
+}
+
+.gratitudeGroup h3,
+.gratitudeBlock h3 {
+  margin: 0;
+  color: var(--blue);
+  font-family: var(--font-serif);
+  font-size: clamp(1.3rem, 2.2vw, 1.68rem);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.gratitudePair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(16px, 3vw, 42px);
+  align-items: start;
+}
+
+.gratitudeNames {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  color: var(--blue);
+  font-size: clamp(1rem, 1.55vw, 1.3rem);
+  font-weight: 500;
+  line-height: 1.45;
+  list-style: none;
+}
+
+.gratitudePartyRows {
+  display: grid;
+  gap: clamp(28px, 4vw, 44px);
+  margin-top: clamp(34px, 5vw, 52px);
+}
+
+.gratitudePartyPair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(20px, 4vw, 54px);
+  align-items: start;
+}
+
+.gratitudePartyCell {
+  display: grid;
+  gap: clamp(16px, 3vw, 24px);
+  align-content: start;
+}
+
+.gratitudeBlock {
+  gap: 14px;
 }
 
 .giftsWishes {
@@ -378,22 +841,22 @@ footer svg {
 }
 
 .giftsWishes h2 {
-  margin-bottom: clamp(34px, 6vw, 74px);
+  margin-bottom: clamp(32px, 5vw, 54px);
   color: var(--blue);
-  font-size: clamp(3.1rem, 9vw, 7.6rem);
-  font-weight: 700;
+  font-size: clamp(2.35rem, 5.2vw, 4.1rem);
+  font-weight: 600;
   letter-spacing: 0.04em;
-  line-height: 0.92;
+  line-height: 1;
   text-transform: uppercase;
 }
 
 .catPortraits {
-  width: min(880px, 100%);
+  width: min(var(--content-mid), 100%);
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   column-gap: clamp(30px, 6vw, 72px);
   row-gap: 18px;
-  margin: 0 auto clamp(38px, 6vw, 70px);
+  margin: 0 auto clamp(18px, 3vw, 32px);
 }
 
 .catButton {
@@ -470,29 +933,26 @@ footer svg {
   }
 }
 
-.giftEyebrow {
-  margin-bottom: 22px;
-  color: var(--blue);
-  font-size: 0.9rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  line-height: 1.45;
-  text-transform: uppercase;
+.giftMessage {
+  margin-bottom: 14px;
 }
 
-.giftMessage {
-  width: min(930px, 100%);
-  margin: 0 auto;
+.giftNote {
   color: var(--blue);
-  font-family: var(--font-serif);
-  font-size: clamp(1.7rem, 4vw, 3.1rem);
-  line-height: 1.05;
+  font-family: var(--font-body);
+  font-size: clamp(1rem, 1.55vw, 1.18rem);
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.65;
+  max-width: 680px;
+  text-transform: none;
 }
 
 .rsvpForm {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
+  padding: clamp(24px, 4vw, 34px);
   background: rgba(255, 253, 248, 0.96);
   border-color: rgba(255, 253, 248, 0.34);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.18);
@@ -508,17 +968,35 @@ footer svg {
   background: var(--blue);
 }
 
+.rsvp > div {
+  max-width: 520px;
+}
+
 .rsvp .eyebrow,
 .rsvp h2,
 .rsvp label {
   color: var(--white);
 }
 
+.rsvp h2 {
+  margin-bottom: 18px;
+}
+
 .rsvp p {
   color: rgba(255, 253, 248, 0.82);
 }
 
+.rsvpContactNumber {
+  color: var(--white);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .rsvpForm label {
+  color: var(--blue);
+}
+
+.rsvpForm .selectField {
   color: var(--blue);
 }
 
@@ -552,11 +1030,19 @@ footer svg {
 }
 
 .faq {
-  background: var(--ivory);
+  background: var(--white);
+  text-align: center;
+}
+
+.faq h2 {
+  margin-bottom: clamp(28px, 5vw, 44px);
 }
 
 .faq details {
-  background: var(--white);
+  width: min(var(--content-mid), 100%);
+  margin: 14px auto 0;
+  background: var(--ivory);
+  text-align: left;
 }
 
 label {
@@ -564,6 +1050,17 @@ label {
   gap: 8px;
   color: var(--blue);
   font-weight: 700;
+}
+
+.selectField {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  font-weight: 700;
+}
+
+.fieldLabel {
+  color: inherit;
 }
 
 input,
@@ -582,6 +1079,77 @@ select {
   height: 48px;
   padding: 0 14px;
   line-height: 1.2;
+}
+
+.dropdownButton {
+  width: 100%;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--ivory);
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.dropdownButton svg {
+  flex: 0 0 auto;
+  color: var(--blue);
+  transition: transform 160ms ease;
+}
+
+.selectField.isOpen .dropdownButton svg {
+  transform: rotate(180deg);
+}
+
+.dropdownButton:focus-visible,
+.dropdownOption:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.dropdownMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 18px 40px rgba(31, 63, 102, 0.18);
+}
+
+.dropdownOption {
+  width: 100%;
+  min-height: 40px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+}
+
+.dropdownOption:hover,
+.dropdownOption.isSelected {
+  background: var(--blue-soft);
+  color: var(--blue);
 }
 
 textarea {
@@ -623,14 +1191,58 @@ summary {
   font-weight: 800;
 }
 
+details p {
+  margin: 14px 0 0;
+}
+
 footer {
+  display: grid;
+  justify-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 36px 20px;
+  background: var(--ivory);
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+
+.footerMessage {
+  width: min(760px, 100%);
+  margin: 0;
+  color: var(--blue);
+  font-size: clamp(0.92rem, 1.35vw, 1.05rem);
+  font-weight: 500;
+  line-height: 1.65;
+}
+
+.footerSignature {
   display: flex;
   justify-content: center;
   align-items: center;
   gap: 10px;
-  padding: 32px 20px;
-  color: var(--muted);
-  border-top: 1px solid var(--line);
+}
+
+.footerSignature p {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  margin: 0;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.footerDivider {
+  color: rgba(105, 117, 134, 0.68);
+}
+
+@media (max-width: 1100px) {
+  .hero {
+    background-position: 52% bottom;
+    background-size: auto 108%;
+  }
 }
 
 @media (max-width: 780px) {
@@ -640,12 +1252,15 @@ footer {
 
   .nav {
     gap: 16px;
-    padding: 14px 18px;
+    padding: 11px 18px;
   }
 
   .brand {
-    flex: 0 0 auto;
-    font-size: 1.05rem;
+    width: auto;
+  }
+
+  .brandLogo {
+    width: 136px;
   }
 
   .navLinks {
@@ -665,23 +1280,23 @@ footer {
 
   .hero {
     min-height: calc(100svh - 112px);
-    padding-top: 10px;
-    padding-bottom: clamp(250px, 42vh, 390px);
+    padding-top: clamp(82px, 14vh, 124px);
+    padding-bottom: clamp(320px, 46vh, 450px);
     background:
       linear-gradient(
-        rgba(251, 247, 238, 0.78),
-        rgba(251, 247, 238, 0.22) 44%,
-        rgba(251, 247, 238, 0.04)
+        rgba(251, 247, 238, 0.46),
+        rgba(251, 247, 238, 0.14) 44%,
+        rgba(251, 247, 238, 0.02)
       ),
       url("/main_proposal.jpg");
-    background-position: 59% bottom;
-    background-size: auto 112%;
+    background-position: 52% bottom;
+    background-repeat: no-repeat;
+    background-size: auto 124%;
   }
 
   .heroCard {
     width: min(100%, 420px);
-    padding: 22px 18px;
-    border-radius: 24px;
+    padding: 12px 12px;
   }
 
   .heroCard .eyebrow {
@@ -729,9 +1344,9 @@ footer {
     margin-bottom: 42px;
   }
 
-  .weddingInfoIntro h3 {
-    font-size: clamp(1.25rem, 6vw, 1.9rem);
-    line-height: 1.15;
+  .sectionLead {
+    font-size: 1.08rem;
+    line-height: 1.6;
   }
 
   .eventDetailsGrid {
@@ -743,29 +1358,240 @@ footer {
     font-size: 1.85rem;
   }
 
+  .dressCodeHeader {
+    margin-bottom: 30px;
+  }
+
+  .dressCodeHeader h2 {
+    margin-bottom: 10px;
+    font-size: 2.2rem;
+    line-height: 1;
+  }
+
+  .dressCodeHeader p {
+    font-size: 1.08rem;
+    line-height: 1.6;
+  }
+
+  .attireGuide {
+    gap: 10px;
+  }
+
+  .attireImage {
+    height: 248px;
+    margin-bottom: 12px;
+  }
+
+  .attireItem:nth-child(2) .attireImage {
+    height: 226px;
+  }
+
+  .attireItem h3,
+  .paletteGroup h3,
+  .avoidGuide h3 {
+    font-size: clamp(1rem, 4.2vw, 1.22rem);
+    letter-spacing: 0.035em;
+  }
+
+  .paletteTitleBold {
+    margin-bottom: 10px;
+    font-size: clamp(1.46rem, 6vw, 1.92rem);
+    font-weight: 800;
+  }
+
+  .attireItem p,
+  .attireNote,
+  .dressCodeNote {
+    font-size: 0.82rem;
+  }
+
+  .paletteGuide {
+    gap: 22px;
+  }
+
+  .guestPaletteGroup {
+    margin-top: 10px;
+  }
+
+  .swatchGrid {
+    gap: 12px 10px;
+  }
+
+  .sponsorsSwatches {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .guestSwatches {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .guestSwatches .swatchItem {
+    flex: 0 0 calc((100% - 20px) / 3);
+  }
+
+  .colorSwatch {
+    width: 54px;
+    height: 54px;
+  }
+
+  .swatchItem,
+  .avoidGuide p {
+    font-size: 0.72rem;
+  }
+
+  .dressCodeSite {
+    margin-top: 26px;
+    font-size: 1.08rem;
+  }
+
+  .gratitudeHeader {
+    margin-bottom: 34px;
+  }
+
+  .gratitudeTitleImage {
+    width: min(100%, 560px);
+  }
+
+  .gratitudeHeader p {
+    font-size: 1.28rem;
+  }
+
+  .gratitudeGroups {
+    gap: 30px;
+  }
+
+  .gratitudePair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: clamp(6px, 2vw, 12px);
+  }
+
+  .gratitudePartyRows {
+    margin-top: 40px;
+    gap: 34px;
+  }
+
+  .gratitudePartyPair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: clamp(10px, 4vw, 22px);
+  }
+
+  .gratitudePartyCell {
+    gap: 18px;
+  }
+
+  .gratitudeGroup h3,
+  .gratitudeBlock h3 {
+    font-size: clamp(1rem, 4.2vw, 1.22rem);
+    letter-spacing: 0.035em;
+  }
+
+  .gratitudeNames {
+    gap: 4px;
+    font-size: clamp(1.02rem, 4.8vw, 1.28rem);
+    line-height: 1.42;
+  }
+
+  .gratitudePartyPair .gratitudeNames {
+    gap: 4px;
+    font-size: clamp(0.58rem, 2.75vw, 0.84rem);
+    white-space: nowrap;
+  }
+
+  .gratitudePair .gratitudeNames {
+    gap: 4px;
+    font-size: clamp(0.66rem, 3.1vw, 0.9rem);
+    white-space: nowrap;
+  }
+
   .giftsWishes h2 {
     margin-bottom: 30px;
-    font-size: clamp(2.4rem, 14vw, 4.4rem);
+    font-size: clamp(2.25rem, 11vw, 3.5rem);
   }
 
   .catPortraits {
     column-gap: 16px;
     row-gap: 10px;
-    margin-bottom: 34px;
-  }
-
-  .giftEyebrow {
-    font-size: 0.76rem;
+    margin-bottom: 20px;
   }
 
   .giftMessage {
-    font-size: clamp(1.45rem, 7vw, 2.2rem);
-    line-height: 1.08;
+    margin-bottom: 12px;
+  }
+
+  .giftNote {
+    font-size: 0.98rem;
+    line-height: 1.58;
+  }
+
+  .websitePhotoSection {
+    --website-photo-height: clamp(420px, 112vw, 560px);
+  }
+
+  .websitePhotoSection::before {
+    background-position: 24% center;
+    background-size: cover;
   }
 
   .twoColumn,
   .rsvp,
   .rsvpForm {
     grid-template-columns: 1fr;
+  }
+
+  .rsvpForm .selectField.isOpen {
+    gap: 0;
+  }
+
+  .rsvpForm .selectField.isOpen .fieldLabel {
+    margin-bottom: 8px;
+  }
+
+  .rsvpForm .selectField.isOpen .dropdownButton {
+    border-bottom-right-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  .rsvpForm .dropdownMenu {
+    position: static;
+    max-height: 230px;
+    border-top: 0;
+    border-top-right-radius: 0;
+    border-top-left-radius: 0;
+    box-shadow: none;
+  }
+
+  textarea {
+    min-height: 145px;
+  }
+
+  footer {
+    gap: 12px;
+    padding: 28px 14px 30px;
+  }
+
+  footer svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .footerMessage {
+    font-size: 0.82rem;
+    line-height: 1.55;
+  }
+
+  .footerSignature {
+    gap: 6px;
+  }
+
+  .footerSignature p {
+    gap: 5px;
+    font-size: clamp(0.64rem, 2.65vw, 0.82rem);
+    line-height: 1.25;
+  }
+
+  .footerDivider {
+    display: inline;
   }
 }

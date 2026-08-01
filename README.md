@@ -7,7 +7,7 @@ A minimalist ivory-and-blue wedding website boilerplate for Krisha and Joe's wed
 - Responsive React + Vite starter project
 - Hero section with countdown
 - Our Story section
-- Subtle cat section for Cookie, Biscuit, and S'mores
+- Subtle cat section for Cookie, Biscuit and Smores
 - Wedding details section
 - RSVP form wired for Google Sheets via Google Apps Script
 - FAQ / must-knows section
@@ -20,6 +20,14 @@ npm run dev
 ```
 
 Then open the local URL shown in your terminal.
+
+## Project structure
+
+- `src/data/wedding.js` stores wedding copy, RSVP settings, venue links, palettes, FAQs and image paths.
+- `src/sections/` contains one React component per page section.
+- `src/components/` contains shared UI pieces such as dropdowns, direction pickers and gratitude lists.
+- `src/features/rsvp/useRsvpForm.js` owns RSVP form state, submission and local backup behavior.
+- `src/hooks/` contains reusable React hooks.
 
 ## RSVP Google Sheet setup
 
