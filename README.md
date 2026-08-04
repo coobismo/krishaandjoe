@@ -21,6 +21,17 @@ npm run dev
 
 Then open the local URL shown in your terminal.
 
+## Password gate
+
+The site asks guests for a password before showing any wedding details. Set the password in `.env.local`:
+
+```bash
+VITE_SITE_PASSWORD=your-password-here
+```
+
+If no custom value is set, the site uses `krishajoe2026`.
+This is a client-side guest gate for casual privacy on a static site. Use hosting-level authentication if you need stronger protection.
+
 ## Project structure
 
 - `src/data/wedding.js` stores wedding copy, RSVP settings, venue links, palettes, FAQs and image paths.

@@ -69,6 +69,104 @@ main {
   padding-top: var(--nav-height);
 }
 
+.passwordPage {
+  position: relative;
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: clamp(28px, 5vw, 56px);
+  background:
+    linear-gradient(
+      rgba(251, 247, 238, 0.9),
+      rgba(251, 247, 238, 0.74)
+    ),
+    url("/main_proposal.jpg");
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  background-size: cover;
+}
+
+.passwordPage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 22%, rgba(255, 253, 248, 0.86), transparent 35%),
+    linear-gradient(rgba(31, 63, 102, 0.08), rgba(31, 63, 102, 0.28));
+  pointer-events: none;
+}
+
+.passwordPanel {
+  position: relative;
+  z-index: 1;
+  width: min(460px, 100%);
+  padding: clamp(28px, 6vw, 44px);
+  text-align: center;
+  background: rgba(255, 253, 248, 0.9);
+  border: 1px solid rgba(31, 63, 102, 0.18);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(14px);
+}
+
+.passwordIcon {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 22px;
+  color: var(--blue);
+  background: var(--blue-soft);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+}
+
+.passwordTitle {
+  margin-bottom: 28px;
+  font-size: clamp(2.35rem, 7.8vw, 3.5rem);
+  line-height: 0.98;
+}
+
+.passwordForm {
+  display: grid;
+  gap: 14px;
+}
+
+.passwordInput {
+  width: 100%;
+  min-height: 52px;
+  padding: 0 18px;
+  color: var(--ink);
+  font: inherit;
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  outline: none;
+  text-align: center;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.passwordInput:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 4px rgba(31, 63, 102, 0.12);
+}
+
+.passwordButton {
+  min-height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.passwordError {
+  margin: 0;
+  color: #9d2f2f;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
 .nav {
   position: fixed;
   top: 0;
