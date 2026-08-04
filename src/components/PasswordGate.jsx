@@ -1,20 +1,20 @@
 import { ArrowRight, LockKeyhole } from 'lucide-react';
 import { useState } from 'react';
 
-const DEFAULT_PASSWORD = 'krishajoe2026';
 const ACCESS_STORAGE_KEY = 'krisha-joe-site-access';
 
 const getSitePassword = () => (
-  import.meta.env.VITE_SITE_PASSWORD || DEFAULT_PASSWORD
+  import.meta.env.VITE_SITE_PASSWORD || ''
 ).trim();
 
 export function PasswordGate({ children }) {
   const sitePassword = getSitePassword();
+  const isPasswordConfigured = sitePassword.length > 0;
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isUnlocked, setIsUnlocked] = useState(() => {
-    if (!sitePassword) {
-      return true;
+    if (!isPasswordConfigured) {
+      return false;
     }
 
     try {
@@ -26,6 +26,11 @@ export function PasswordGate({ children }) {
 
   function unlockSite(event) {
     event.preventDefault();
+
+    if (!isPasswordConfigured) {
+      setError('The guest password is not configured yet.');
+      return;
+    }
 
     if (password.trim() !== sitePassword) {
       setError('That password does not match. Please try again.');
@@ -63,19 +68,28 @@ export function PasswordGate({ children }) {
           </label>
           <input
             autoComplete="current-password"
-            autoFocus
+            autoFocus={isPasswordConfigured}
             className="passwordInput"
+            disabled={!isPasswordConfigured}
             id="site-password"
             onChange={(event) => setPassword(event.target.value)}
             placeholder="Guest password"
             type="password"
             value={password}
           />
-          <button className="button primary passwordButton" type="submit">
+          <button
+            className="button primary passwordButton"
+            disabled={!isPasswordConfigured}
+            type="submit"
+          >
             <span>Enter site</span>
             <ArrowRight size={18} strokeWidth={2} />
           </button>
-          {error ? (
+          {!isPasswordConfigured ? (
+            <p className="passwordError" role="alert">
+              The guest password is not configured yet.
+            </p>
+          ) : error ? (
             <p className="passwordError" role="alert">
               {error}
             </p>
