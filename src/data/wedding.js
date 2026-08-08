@@ -36,7 +36,7 @@ export const WEDDING_EVENTS = [
     icon: 'ceremony',
     title: 'The Ceremony',
     date: 'Saturday, November 21, 2026',
-    time: '2:30 PM',
+    time: '2:00 PM',
     placeName: 'St. Jerome Emiliani and Sta. Susana Parish',
     placeLines: [
       'St. Jerome Emiliani',
@@ -51,7 +51,7 @@ export const WEDDING_EVENTS = [
     icon: 'celebration',
     title: 'The Celebration',
     date: 'Saturday, November 21, 2026',
-    time: '5:00 PM',
+    time: '4:00 PM',
     placeName: 'The Bellevue Manila',
     placeLines: [
       'The Bellevue Manila',
@@ -281,7 +281,7 @@ export const RSVP_COPY = {
   heading: 'RSVP',
   intro: 'We’d love to celebrate with you! Please let us know if you’ll be joining us by October 21, 2026.',
   alternate: 'If you prefer, you may also RSVP via text through our coordinator, Choi, at',
-  contactNumber: '+63 917 123 4567',
+  contactNumber: '+63 927 214 7050',
   alternateSuffix: 'Please include your names and that you will be attending Krisha and Joe’s wedding.',
   textareaPlaceholder: 'Dietary restrictions, song requests for cocktail hour or the after-party, well wishes, or anything else you’d like us to know.',
   successMessage: 'RSVP sent. Thank you!',
