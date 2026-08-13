@@ -126,7 +126,7 @@ export const GRATITUDE_GROUPS = [
     columns: [
       [
         'Mr. Ricardo Chua',
-        'Mr. Cecilio Duka Jr.',
+        'Mr. Cecilio Duka',
         'Mr. Lito Matanguihan',
         'Mr. Carlo Enrico Silvestre',
         'Mr. Michael Tesalona',
