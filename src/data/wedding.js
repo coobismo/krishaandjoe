@@ -314,12 +314,6 @@ export const FAQ_ITEMS = [
     ],
   },
   {
-    question: 'What time should I arrive?',
-    paragraphs: [
-      'We recommend arriving 30 minutes before the ceremony to allow time for parking, registration and seating.',
-    ],
-  },
-  {
     question: 'Can I take photos during the ceremony?',
     paragraphs: [
       'Absolutely! Feel free to take photos throughout the day. We simply ask that you be mindful of our photographers and videographers so they can capture every special moment.',
@@ -329,7 +323,7 @@ export const FAQ_ITEMS = [
     question: 'Who do I contact on the wedding day?',
     paragraphs: [
       "If you have any questions before the wedding, please don't hesitate to reach out to Krisha or Joe at +63 945 485 3887.",
-      'On the wedding day, our coordinator Choi will be happy to assist you at +63 917 123 4567.',
+      'On the wedding day, our coordinator Choi will be happy to assist you at +63 927 214 7050.',
     ],
   },
   {
