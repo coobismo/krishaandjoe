@@ -1,4 +1,4 @@
-export const WEDDING_DATE = new Date('2026-11-21T15:00:00+08:00');
+export const WEDDING_DATE = new Date('2026-11-21T14:00:00+08:00');
 export const RSVP_ENDPOINT = import.meta.env.VITE_RSVP_ENDPOINT || '';
 export const RSVP_STORAGE_KEY = 'krisha-joe-rsvps';
 

@@ -389,8 +389,40 @@ h2 {
 }
 
 .countdown {
-  color: var(--blue);
-  font-weight: 700;
+  width: min(100%, 240px);
+  margin: 0 auto;
+  color: #4a5c70;
+}
+
+.countdownUnits {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(6px, 2vw, 8px);
+}
+
+.countdownUnit {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.countdownValue {
+  font-size: clamp(1.05rem, 3.5vw, 1.2rem);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.countdownLabel {
+  margin-top: 3px;
+  font-size: 0.55rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.countdownMessage {
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
 }
 
 .twoColumn,

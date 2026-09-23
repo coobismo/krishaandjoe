@@ -37,7 +37,7 @@ export default function App() {
     <PasswordGate>
       <main>
         <Navigation />
-        <Hero countdownLabel={countdown.label} />
+        <Hero countdown={countdown} />
         <PreWedding />
         <WeddingDetails
           onCloseDropdown={closeDropdown}
