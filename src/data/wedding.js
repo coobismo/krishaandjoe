@@ -186,9 +186,9 @@ export const GRATITUDE_PAIRS = [
         names: [
           'Mr. Gammaniel Nelson Cabello',
           'Mr. Bryan Kenneth Desierdo',
-          'Mr. Joshua Despabiladeras',
           'Mr. Reyvin John Legaspi',
           'Mr. Ivan Aaron Monteser',
+          'Mr. Joshua Despabiladeras'
         ],
       },
     ],
@@ -199,7 +199,7 @@ export const GRATITUDE_PAIRS = [
           'Ms. Alyssa Tamargo',
           'Mrs. Renee Agnes Bueneventura',
           'Ms. Andrea Faye Ragos',
-          'Ms. Shaira San Pedro',
+          'Ms. Kacey Llaine Robles'
         ],
       },
     ],
@@ -223,7 +223,6 @@ export const GRATITUDE_PAIRS = [
       {
         title: 'Flower Girls',
         names: [
-          'Ms. Kacey Llaine Robles',
           'Ms. Roschelli Lacorte',
           'Ms. Asha Faith Torregoza',
           'Ms. Aleanna Rose Felipe',
