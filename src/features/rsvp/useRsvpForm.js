@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { postRsvp } from './postRsvp.mjs';
 import {
   EMPTY_RSVP_FORM,
   RSVP_COPY,
@@ -104,19 +105,7 @@ export function useRsvpForm() {
         throw new Error('Missing VITE_RSVP_ENDPOINT');
       }
 
-      await fetch(RSVP_ENDPOINT, {
-        method: 'POST',
-        mode: 'no-cors',
-        // Apps Script has already processed the POST before redirecting to its
-        // response body. This opaque transport cannot read that body anyway.
-        redirect: new URL(RSVP_ENDPOINT, window.location.href).hostname === 'script.google.com'
-          ? 'manual'
-          : 'follow',
-        headers: {
-          'Content-Type': 'text/plain;charset=utf-8',
-        },
-        body: JSON.stringify(entry),
-      });
+      await postRsvp(RSVP_ENDPOINT, entry);
 
       saveResponseLocally(entry);
       setSubmission({ status: 'success', message: RSVP_COPY.successMessage });

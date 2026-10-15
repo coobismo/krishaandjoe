@@ -68,11 +68,14 @@ For an existing Apps Script deployment, paste the updated script, then choose
 The script caches header checks for six hours and limits its lock to sheet writes.
 Header edits in the sheet are rechecked when the cache expires.
 
-The browser skips the Apps Script response-body redirect because `no-cors` makes
-that response unreadable. It still waits for the initial POST response; it does
-not report success immediately on click. This transport cannot verify that the
-sheet accepted a response, so test the deployed flow by submitting an RSVP and
-checking the sheet. Google startup and network latency can still take a few seconds.
+The browser follows the Apps Script redirect to its response. Cross-origin
+`no-cors` requests require `redirect: 'follow'`; using `'manual'` makes the browser
+reject the request before sending it. The response is unreadable with `no-cors`,
+so this transport cannot verify that the sheet accepted a response. Test the
+deployed flow by submitting an RSVP and checking the sheet. Google startup and
+network latency can still take a few seconds.
+
+Run `npm test` to check the RSVP POST and redirect flow against local test servers.
 
 ## Suggested next edits
 
