@@ -63,6 +63,17 @@ VITE_RSVP_ENDPOINT=https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec
 
 Restart `npm run dev` after changing `.env.local`.
 
+For an existing Apps Script deployment, paste the updated script, then choose
+`Deploy` > `Manage deployments` > edit > `New version` > `Deploy` to keep the same URL.
+The script caches header checks for six hours and limits its lock to sheet writes.
+Header edits in the sheet are rechecked when the cache expires.
+
+The browser skips the Apps Script response-body redirect because `no-cors` makes
+that response unreadable. It still waits for the initial POST response; it does
+not report success immediately on click. This transport cannot verify that the
+sheet accepted a response, so test the deployed flow by submitting an RSVP and
+checking the sheet. Google startup and network latency can still take a few seconds.
+
 ## Suggested next edits
 
 - Add final ceremony and reception venue details

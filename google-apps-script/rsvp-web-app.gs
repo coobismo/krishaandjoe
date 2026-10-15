@@ -12,13 +12,15 @@ const HEADERS = [
 
 function doPost(event) {
   const lock = LockService.getScriptLock();
-  lock.waitLock(30000);
 
   try {
     const payload = JSON.parse(event.postData.contents || '{}');
     const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = getTargetSheet(spreadsheet);
 
+    // Open the spreadsheet before taking the lock so concurrent requests can
+    // prepare independently. Only header setup and the write are serialized.
+    lock.waitLock(30000);
     ensureHeaders(sheet);
     sheet.appendRow([
       payload.submittedAt ? new Date(payload.submittedAt) : new Date(),
@@ -30,11 +32,12 @@ function doPost(event) {
       payload.message || '',
     ]);
 
+    SpreadsheetApp.flush();
     return toJson({ ok: true });
   } catch (error) {
     return toJson({ ok: false, message: error.message });
   } finally {
-    lock.releaseLock();
+    if (lock.hasLock()) lock.releaseLock();
   }
 }
 
@@ -51,6 +54,10 @@ function getTargetSheet(spreadsheet) {
 }
 
 function ensureHeaders(sheet) {
+  const cache = CacheService.getScriptCache();
+  const cacheKey = `headers:${SPREADSHEET_ID}:${sheet.getSheetId()}:${HEADERS.join("|")}`;
+  if (cache.get(cacheKey)) return;
+
   const currentHeaders = sheet.getRange(1, 1, 1, HEADERS.length).getValues()[0];
   const headersMatch = HEADERS.every((header, index) => currentHeaders[index] === header);
 
@@ -58,6 +65,10 @@ function ensureHeaders(sheet) {
     sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
     sheet.setFrozenRows(1);
   }
+
+  // Cache only header readiness, never guest data. Cache misses still validate
+  // the sheet, including after a new deployment or sheet change.
+  cache.put(cacheKey, 'ready', 21600);
 }
 
 function formatAttendance(value) {

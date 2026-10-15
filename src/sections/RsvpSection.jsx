@@ -27,7 +27,7 @@ export function RsvpSection({
         </p>
       </div>
 
-      <form className="rsvpForm" onSubmit={onSubmit}>
+      <form className="rsvpForm" onSubmit={onSubmit} aria-busy={submission.status === 'submitting'}>
         <label>
           Full Name
           <input required name="name" value={form.name} onChange={onUpdateField} placeholder="Your name" />
@@ -88,6 +88,10 @@ export function RsvpSection({
         <button className="button primary full" type="submit" disabled={submission.status === 'submitting'}>
           {submission.status === 'submitting' ? 'Submitting...' : 'Submit RSVP'}
         </button>
+
+        {submission.status === 'submitting' && (
+          <p className="formMessage" role="status">Sending your RSVP. This may take a few seconds—please keep this page open.</p>
+        )}
 
         {submission.status === 'success' && (
           <p className="formMessage success"><CheckCircle2 size={18} /> {submission.message}</p>

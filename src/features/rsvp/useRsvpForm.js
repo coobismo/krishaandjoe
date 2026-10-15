@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   EMPTY_RSVP_FORM,
   RSVP_COPY,
@@ -52,6 +52,7 @@ export function useRsvpForm() {
   const [form, setForm] = useState(EMPTY_RSVP_FORM);
   const [submission, setSubmission] = useState({ status: 'idle', message: '' });
   const [, setResponses] = useState(loadStoredResponses);
+  const submitting = useRef(false);
   const isAttending = form.attendance === 'yes';
 
   function updateFormValue(name, value) {
@@ -84,6 +85,8 @@ export function useRsvpForm() {
 
   async function submitRsvp(event) {
     event.preventDefault();
+    if (submitting.current) return;
+    submitting.current = true;
 
     const entry = {
       ...form,
@@ -104,6 +107,11 @@ export function useRsvpForm() {
       await fetch(RSVP_ENDPOINT, {
         method: 'POST',
         mode: 'no-cors',
+        // Apps Script has already processed the POST before redirecting to its
+        // response body. This opaque transport cannot read that body anyway.
+        redirect: new URL(RSVP_ENDPOINT, window.location.href).hostname === 'script.google.com'
+          ? 'manual'
+          : 'follow',
         headers: {
           'Content-Type': 'text/plain;charset=utf-8',
         },
@@ -121,6 +129,8 @@ export function useRsvpForm() {
           ? RSVP_COPY.endpointErrorMessage
           : RSVP_COPY.missingEndpointMessage,
       });
+    } finally {
+      submitting.current = false;
     }
   }
 
