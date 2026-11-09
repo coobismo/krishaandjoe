@@ -50,42 +50,6 @@ test('starts a resumable create with the durable generated ID, parent and upload
   });
 });
 
-test('folder repair updates only the known file’s parent relationship and preserves content', async () => {
-  const { drive, calls } = providerFor([empty(200)]);
-  await drive.moveFileToFolder({ fileId: 'known-upload', folderId: 'canonical-folder', currentParents: ['old-parent', 'old-parent'] });
-  const url = new URL(calls[0].url);
-  assert.equal(url.pathname, '/drive/v3/files/known-upload');
-  assert.equal(url.searchParams.get('addParents'), 'canonical-folder');
-  assert.equal(url.searchParams.get('removeParents'), 'old-parent');
-  assert.equal(url.searchParams.get('supportsAllDrives'), 'true');
-  assert.equal(calls[0].method, 'PATCH');
-  assert.equal(calls[0].body, '{}');
-  assert.equal(url.searchParams.has('uploadType'), false);
-});
-
-test('a parentless upload can be attached without removing any unknown parent', async () => {
-  const { drive, calls } = providerFor([empty(200)]);
-  await drive.moveFileToFolder({ fileId: 'known-upload', folderId: 'destination', currentParents: [] });
-  assert.equal(new URL(calls[0].url).searchParams.has('removeParents'), false);
-});
-
-test('invalid folder updates are rejected locally and Google permission errors stay private', async () => {
-  const { drive, calls } = providerFor([json({ error: { message: 'private', errors: [{ reason: 'insufficientFilePermissions' }] } }, 403)]);
-  for (const invalid of [
-    { fileId: '../other', folderId: 'destination', currentParents: [] },
-    { fileId: 'known-upload', folderId: 'bad/folder', currentParents: [] },
-    { fileId: 'known-upload', folderId: 'destination', currentParents: ['bad/parent'] },
-  ]) await assert.rejects(drive.moveFileToFolder(invalid), { status: 502 });
-  assert.equal(calls.length, 0);
-  await assert.rejects(drive.moveFileToFolder({ fileId: 'known-upload', folderId: 'destination', currentParents: ['old-parent'] }), (error) => {
-    assert.equal(error.status, 403);
-    assert.equal(error.diagnostics.operation, 'move_file');
-    assert.equal(error.diagnostics.reason, 'insufficientFilePermissions');
-    assert.equal(error.message.includes('private'), false);
-    return true;
-  });
-});
-
 test('zero-byte status PUT normalizes308 Range and missing Range to received bytes', async () => {
   const { drive, calls } = providerFor([empty(308, { Range: 'bytes=0-4194303' }), empty(308)]);
   assert.deepEqual(await drive.querySession(sessionUrl, 5000000), { status: 'uploading', uploadedBytes: 4194304 });
@@ -189,7 +153,7 @@ test('a Google success body cannot substitute for independent final metadata ver
   const { drive } = providerFor([
     json({ ids: ['file-1'] }), empty(404), empty(200, { Location: sessionUrl }),
     json({ id: 'file-1', size: '7' }, 201),
-    json({ id: 'file-1', size: '7', mimeType: 'image/jpeg', parents: ['wrong-parent'], appProperties: { uploadId } }),
+    json({ id: 'file-1', size: '6', mimeType: 'image/jpeg', appProperties: { uploadId } }),
   ]);
   const records = new Map();
   const service = createUploadService({

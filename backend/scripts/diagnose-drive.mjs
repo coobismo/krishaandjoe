@@ -137,7 +137,6 @@ try {
     const expectedSize = Number(fields.size?.integerValue);
     const expectedMimeType = fields.mimeType?.stringValue;
     const expectedUploadId = fields.uploadId?.stringValue;
-    const targetFolderId = fields.targetFolderId?.stringValue || folder.id || folderId;
     const sessionUrl = fields.sessionUrl?.stringValue;
     if (!fileId || !Number.isSafeInteger(expectedSize) || expectedSize <= 0) {
       throw new DiagnosticFailure('The stored upload has no valid Drive file checkpoint yet.');
@@ -154,7 +153,6 @@ try {
         idMatches: storedFile.id === fileId,
         sizeMatches: String(storedFile.size) === String(expectedSize),
         mimeMatches: storedFile.mimeType === expectedMimeType,
-        parentMatches: storedFile.parents?.includes(targetFolderId) === true,
         uploadIdMatches: storedFile.appProperties?.uploadId === expectedUploadId,
         notTrashed: storedFile.trashed !== true,
       };
@@ -164,9 +162,6 @@ try {
         reportedBytes: Number.isSafeInteger(reportedSize) && reportedSize >= 0 ? reportedSize : null,
         expectedMimeType: safeMime(expectedMimeType),
         reportedMimeType: safeMime(storedFile.mimeType),
-        configuredFolderMatchesCanonical: folderId === folder.id,
-        configuredParentMatches: storedFile.parents?.includes(folderId) === true,
-        parentMetadataPresent: Array.isArray(storedFile.parents),
       }, null, 2));
     }
     if (sessionUrl) {

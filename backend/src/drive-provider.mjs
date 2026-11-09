@@ -3,7 +3,7 @@ import { googleErrorReason, safeDiagnostic } from './diagnostics.mjs';
 
 const API = 'https://www.googleapis.com/drive/v3';
 const UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3/files';
-const FILE_FIELDS = 'id,size,mimeType,parents,appProperties,trashed';
+const FILE_FIELDS = 'id,size,mimeType,appProperties,trashed';
 const ID = /^[A-Za-z0-9_-]{1,256}$/;
 
 function sessionAddress(value, operation) {
@@ -133,27 +133,6 @@ export function createDriveProvider({ auth, fetchImpl = globalThis.fetch, timeou
       }
       if (!response.ok) return failure(response, operation);
       return limitedJson(response, operation);
-    },
-
-    async moveFileToFolder({ fileId, folderId, currentParents = [] }) {
-      const operation = 'move_file';
-      if (typeof fileId !== 'string' || typeof folderId !== 'string' || !ID.test(fileId) || !ID.test(folderId)
-          || !Array.isArray(currentParents) || currentParents.some((parent) => typeof parent !== 'string' || !ID.test(parent))) {
-        throw new DriveError(502, { operation, reason: 'invalidParameter', upstreamStatus: undefined });
-      }
-      const previousParents = [...new Set(currentParents)].filter((parent) => parent !== folderId);
-      const query = new URLSearchParams({ addParents: folderId, supportsAllDrives: 'true' });
-      if (previousParents.length) query.set('removeParents', previousParents.join(','));
-      // Only the upload service may call this, after checking the durable file
-      // ID, byte size, MIME type, upload marker and non-trashed state. This
-      // changes the folder relationship without replacing file content.
-      const response = await request(operation, `${API}/files/${fileId}?${query}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json; charset=utf-8' },
-        body: '{}',
-      });
-      if (!response.ok) return failure(response, operation);
-      await response.body?.cancel();
     },
 
     async createSession({ fileId, uploadId, name, mimeType, size, folderId, guestName }) {

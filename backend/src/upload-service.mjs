@@ -132,20 +132,10 @@ export function createUploadService({ repository, drive, folderId, uploadCode, t
     }
   }
 
-  function matchesFileContent(file, record) {
+  function matchesFile(file, record) {
     return file && file.id === record.fileId && String(file.size) === String(record.size)
       && file.mimeType === record.mimeType
       && file.appProperties?.uploadId === record.uploadId && file.trashed !== true;
-  }
-
-  function validParents(parents) {
-    return Array.isArray(parents)
-      && parents.every((parent) => typeof parent === 'string' && /^[A-Za-z0-9_-]{1,256}$/.test(parent));
-  }
-
-  function matchesFile(file, record) {
-    return matchesFileContent(file, record) && validParents(file.parents)
-      && file.parents.includes(record.targetFolderId || folderId);
   }
 
   function metadataMismatch() {
@@ -153,32 +143,8 @@ export function createUploadService({ repository, drive, folderId, uploadCode, t
   }
 
   async function finish(lease, file) {
-    // Only the exact completed file created for this upload may have its parent
-    // repaired. Content, ID, upload marker and trash checks remain mandatory.
-    if (!matchesFileContent(file, lease.record)) throw metadataMismatch();
-    let targetFolderId = lease.record.targetFolderId || folderId;
-    if (!matchesFile(file, lease.record)) {
-      // An omitted/empty parents field is an orphan candidate. Add only the
-      // destination in that case; never remove a parent we have not observed.
-      const currentParents = file.parents === undefined ? [] : file.parents;
-      if (!validParents(currentParents)) throw metadataMismatch();
-      const folder = await lease.call(() => drive.getFile(folderId));
-      if (!folder || typeof folder.id !== 'string' || !/^[A-Za-z0-9_-]{1,256}$/.test(folder.id)
-          || folder.mimeType !== 'application/vnd.google-apps.folder' || folder.trashed === true) {
-        throw metadataMismatch();
-      }
-      targetFolderId = folder.id;
-      if (!currentParents.includes(targetFolderId)) {
-        await lease.call(() => drive.moveFileToFolder({
-          fileId: lease.record.fileId, folderId: targetFolderId, currentParents,
-        }));
-        // A successful move response is not a completion receipt. Re-read the
-        // file and verify all content/identity fields and the canonical parent.
-        file = await fetchFile(lease);
-      }
-      if (!matchesFile(file, { ...lease.record, targetFolderId })) throw metadataMismatch();
-    }
-    await lease.save({ status: 'complete', uploadedBytes: lease.record.size, sessionUrl: null, targetFolderId });
+    if (!matchesFile(file, lease.record)) throw metadataMismatch();
+    await lease.save({ status: 'complete', uploadedBytes: lease.record.size, sessionUrl: null });
     return lease.record;
   }
 
@@ -217,7 +183,7 @@ export function createUploadService({ repository, drive, folderId, uploadCode, t
     // An expired session can belong to a file whose final response was lost.
     // Verify that file before considering a new create with the same ID. A
     // file with mismatched content or identity must never be replaced or
-    // treated as complete; finish may safely repair its destination parent.
+    // treated as complete.
     const file = await fetchFile(lease);
     if (file) return finish(lease, file);
     await lease.save({ sessionUrl: null, uploadedBytes: 0 });

@@ -38,14 +38,11 @@ The per-file Firestore lease coordinates retries across instances. A generated
 Drive file ID is persisted before upload so retrying a transfer can only create
 that one destination file.
 
-Completion verifies the configured folder's canonical ID. If a committed file
-has a different parent, the backend first verifies its exact allocated file ID,
-byte size, MIME type, upload marker and non-trashed state. Only that known upload
-can be attached/moved to the configured folder; the backend then independently
-reads its metadata again before confirming success. It never overwrites file
-content or relocates a file that fails those identity/content checks. Retrying
-an existing selection can finish this verification without re-uploading its
-already committed bytes.
+Completion verifies the allocated file ID, byte size, MIME type, upload marker
+and non-trashed state. The destination folder is set when creating the upload.
+Folder-parent metadata is excluded from completion checks and diagnostic
+comparisons. Retrying an existing selection can confirm its already committed
+file without re-uploading its bytes.
 
 ## 1. Create a project and sign in
 

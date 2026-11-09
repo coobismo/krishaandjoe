@@ -1,7 +1,7 @@
 const UPSTREAMS = new Set(['drive', 'oauth', 'firestore', 'unknown']);
 const OPERATIONS = new Set([
   'generate_file_id', 'get_file', 'create_session', 'query_session', 'put_chunk',
-  'refresh_token', 'verify_file', 'move_file', 'transaction', 'unknown',
+  'refresh_token', 'verify_file', 'transaction', 'unknown',
 ]);
 const GOOGLE_REASONS = new Set([
   'invalid_grant', 'invalid_client', 'unauthorized_client', 'access_denied',
