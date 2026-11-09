@@ -27,6 +27,19 @@ export function FaqSection() {
           {item.paragraphs.map((paragraph, index) => (
             <FaqParagraph key={`${item.question}-${index}`} paragraph={paragraph} />
           ))}
+          {item.paymentQrs && (
+            <div className="faqPaymentQrs">
+              {item.paymentQrs.map((payment) => (
+                <figure className="faqPaymentQr" key={payment.label}>
+                  <figcaption>{payment.label}</figcaption>
+                  <a href={payment.src} target="_blank" rel="noreferrer" aria-label={`Open ${payment.label} payment QR code`}>
+                    <img src={payment.src} alt={`${payment.label} payment QR code`} loading="lazy" />
+                  </a>
+                  <a className="inlineTextLink" href={payment.src} download>Save {payment.label} QR</a>
+                </figure>
+              ))}
+            </div>
+          )}
         </details>
       ))}
     </section>

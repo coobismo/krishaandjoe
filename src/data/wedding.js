@@ -333,6 +333,16 @@ export const FAQ_ITEMS = [
       "And one small tip... save a little room because we've got a wonderful dinner waiting for you.",
     ],
   },
+  {
+    question: 'How can we send a gift?',
+    paragraphs: [
+      'Your presence is the greatest gift we could ask for. Should you wish to give a monetary gift, you may scan one of the QR codes below using your banking or e-wallet app.',
+    ],
+    paymentQrs: [
+      { label: 'BPI', src: '/qr_bpi.jpeg' },
+      { label: 'GCash', src: '/qr_gcash.jpeg' },
+    ],
+  },
 ];
 
 export const FOOTER = {
