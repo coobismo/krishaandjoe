@@ -5,6 +5,10 @@ function FaqParagraph({ paragraph }) {
     return <p>{paragraph}</p>;
   }
 
+  if (paragraph.emphasis) {
+    return <p><strong>{paragraph.emphasis}</strong>{paragraph.text}</p>;
+  }
+
   return (
     <p>
       {paragraph.before}

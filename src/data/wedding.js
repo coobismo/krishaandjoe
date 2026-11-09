@@ -313,6 +313,16 @@ export const FAQ_ITEMS = [
     ],
   },
   {
+    question: 'How do I get from the church to the reception?',
+    paragraphs: [
+      'The Bellevue Manila is just around a 10-minute drive from the church. You may refer to the Google Maps/Waze link above for directions.',
+      {
+        emphasis: 'Please note:',
+        text: ' Do not enter the tunnel leading to the Skyway. Take the service road instead.',
+      },
+    ],
+  },
+  {
     question: 'Can I take photos during the ceremony?',
     paragraphs: [
       'Absolutely! Feel free to take photos throughout the day. We simply ask that you be mindful of our photographers and videographers so they can capture every special moment.',
