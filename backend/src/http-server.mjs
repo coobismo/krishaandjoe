@@ -1,5 +1,6 @@
 import { createServer } from 'node:http';
 import { ApiError } from './errors.mjs';
+import { safeDiagnostic } from './diagnostics.mjs';
 
 const MAX_JSON_BYTES = 32 * 1024;
 const MAX_CHUNK_BYTES = 4 * 1024 * 1024;
@@ -205,9 +206,12 @@ export function createUploadServer({ service, allowedOrigins, logger = console }
         response.setHeader('Retry-After', String(Math.max(1, Number(error.retryAfter) || 2)));
       }
       if (status >= 500) {
-        // Log only classification; provider exceptions may contain tokens or
-        // resumable session URLs and must not reach logs or the browser.
-        logger.error?.({ event: 'upload_request_failed', status });
+        const diagnostic = safeDiagnostic(error);
+        const hasDiagnostic = error?.diagnostics !== undefined || diagnostic.upstream !== 'unknown';
+        logger.error?.(JSON.stringify({
+          event: 'upload_request_failed', status,
+          ...(hasDiagnostic ? { diagnostics: diagnostic } : {}),
+        }));
       }
       sendJson(response, status, { ok: false, error: message, generic: status >= 500, retryable });
     }

@@ -50,6 +50,42 @@ test('starts a resumable create with the durable generated ID, parent and upload
   });
 });
 
+test('folder repair updates only the known file’s parent relationship and preserves content', async () => {
+  const { drive, calls } = providerFor([empty(200)]);
+  await drive.moveFileToFolder({ fileId: 'known-upload', folderId: 'canonical-folder', currentParents: ['old-parent', 'old-parent'] });
+  const url = new URL(calls[0].url);
+  assert.equal(url.pathname, '/drive/v3/files/known-upload');
+  assert.equal(url.searchParams.get('addParents'), 'canonical-folder');
+  assert.equal(url.searchParams.get('removeParents'), 'old-parent');
+  assert.equal(url.searchParams.get('supportsAllDrives'), 'true');
+  assert.equal(calls[0].method, 'PATCH');
+  assert.equal(calls[0].body, '{}');
+  assert.equal(url.searchParams.has('uploadType'), false);
+});
+
+test('a parentless upload can be attached without removing any unknown parent', async () => {
+  const { drive, calls } = providerFor([empty(200)]);
+  await drive.moveFileToFolder({ fileId: 'known-upload', folderId: 'destination', currentParents: [] });
+  assert.equal(new URL(calls[0].url).searchParams.has('removeParents'), false);
+});
+
+test('invalid folder updates are rejected locally and Google permission errors stay private', async () => {
+  const { drive, calls } = providerFor([json({ error: { message: 'private', errors: [{ reason: 'insufficientFilePermissions' }] } }, 403)]);
+  for (const invalid of [
+    { fileId: '../other', folderId: 'destination', currentParents: [] },
+    { fileId: 'known-upload', folderId: 'bad/folder', currentParents: [] },
+    { fileId: 'known-upload', folderId: 'destination', currentParents: ['bad/parent'] },
+  ]) await assert.rejects(drive.moveFileToFolder(invalid), { status: 502 });
+  assert.equal(calls.length, 0);
+  await assert.rejects(drive.moveFileToFolder({ fileId: 'known-upload', folderId: 'destination', currentParents: ['old-parent'] }), (error) => {
+    assert.equal(error.status, 403);
+    assert.equal(error.diagnostics.operation, 'move_file');
+    assert.equal(error.diagnostics.reason, 'insufficientFilePermissions');
+    assert.equal(error.message.includes('private'), false);
+    return true;
+  });
+});
+
 test('zero-byte status PUT normalizes308 Range and missing Range to received bytes', async () => {
   const { drive, calls } = providerFor([empty(308, { Range: 'bytes=0-4194303' }), empty(308)]);
   assert.deepEqual(await drive.querySession(sessionUrl, 5000000), { status: 'uploading', uploadedBytes: 4194304 });
@@ -123,7 +159,7 @@ test('real provider + domain confirms final metadata and does not expose session
   const file = { id: 'file-1', size: '7', mimeType: 'image/jpeg', parents: ['folder-1'], appProperties: { uploadId } };
   const { drive, calls } = providerFor([
     json({ ids: ['file-1'] }), empty(404), empty(200, { Location: sessionUrl }),
-    json({ id: 'file-1' }, 201), json(file),
+    empty(308), json({ id: 'file-1' }, 201), json(file),
   ]);
   const records = new Map();
   const repository = {
@@ -135,9 +171,16 @@ test('real provider + domain confirms final metadata and does not expose session
   };
   const service = createUploadService({ repository, drive, folderId: 'folder-1', uploadCode: 'guest-code', tokenSecret: 'a-token-secret-longer-than-32-characters' });
   const init = await service.initialize({ uploadId, name: 'photo.jpg', mimeType: 'image/jpeg', size: 7 }, 'guest-code');
+  const beforeBytes = await service.status(uploadId, init.token);
+  assert.equal(beforeBytes.status, 'uploading');
+  assert.equal(beforeBytes.uploadedBytes, 0);
   const receipt = await service.putChunk(uploadId, init.token, { start: 0, end: 6, total: 7 }, Buffer.alloc(7));
   assert.equal(receipt.status, 'complete');
-  assert.equal(calls.length, 5);
+  assert.equal(calls.length, 6);
+  assert.equal(calls[3].method, 'PUT');
+  assert.equal(calls[3].headers['Content-Range'], 'bytes */7');
+  assert.equal(calls[4].headers['Content-Range'], 'bytes 0-6/7');
+  assert.ok(calls[5].url.startsWith('https://www.googleapis.com/drive/v3/files/file-1?'));
   assert.doesNotMatch(JSON.stringify([init, receipt]), /private-session-token|server-access-token|www.googleapis.com|file-1/);
 });
 

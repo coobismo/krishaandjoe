@@ -185,7 +185,7 @@ test('unexpected provider exceptions reveal no secrets in responses or logs', as
   assert.equal(body.generic, true);
   assert.equal(body.retryable, true);
   assert.ok(!JSON.stringify(body).includes(secret));
-  assert.deepEqual(logs, [{ event: 'upload_request_failed', status: 500 }]);
+  assert.deepEqual(logs.map((entry) => JSON.parse(entry)), [{ event: 'upload_request_failed', status: 500 }]);
 });
 
 test('unknown paths and methods return JSON errors', async (t) => {

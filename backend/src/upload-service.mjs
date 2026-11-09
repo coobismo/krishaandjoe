@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { ApiError, DriveError } from './errors.mjs';
 import { createUploadAuth } from './auth.mjs';
+import { safeDiagnostic } from './diagnostics.mjs';
 
 export const UPLOAD_CHUNK_BYTES = 4 * 1024 * 1024;
 export const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
@@ -39,8 +40,10 @@ function safeFileName(name) {
     .replace(/^\.+/, '').trim().slice(0, 200) || 'memory';
 }
 
-function unavailable() {
-  return new ApiError(503, 'We could not confirm this upload. Please try again.', { retryable: true, retryAfter: 2 });
+function unavailable(cause) {
+  return new ApiError(503, 'We could not confirm this upload. Please try again.', {
+    retryable: true, retryAfter: 2, diagnostics: safeDiagnostic(cause),
+  });
 }
 
 export function createUploadService({ repository, drive, folderId, uploadCode, tokenSecret, now = () => new Date() }) {
@@ -119,7 +122,7 @@ export function createUploadService({ repository, drive, folderId, uploadCode, t
       if (error instanceof DriveError && error.status === 429) {
         throw new ApiError(429, 'The album is busy. Please try again in a moment.', { retryable: true, retryAfter: 2 });
       }
-      throw unavailable();
+      throw unavailable(error);
     } finally {
       // Release only our own lease; a crashed request is recovered by expiry.
       await repository.transaction(uploadId, (current) => {
@@ -129,15 +132,53 @@ export function createUploadService({ repository, drive, folderId, uploadCode, t
     }
   }
 
-  function matchesFile(file, record) {
+  function matchesFileContent(file, record) {
     return file && file.id === record.fileId && String(file.size) === String(record.size)
-      && file.mimeType === record.mimeType && file.parents?.includes(folderId)
+      && file.mimeType === record.mimeType
       && file.appProperties?.uploadId === record.uploadId && file.trashed !== true;
   }
 
+  function validParents(parents) {
+    return Array.isArray(parents)
+      && parents.every((parent) => typeof parent === 'string' && /^[A-Za-z0-9_-]{1,256}$/.test(parent));
+  }
+
+  function matchesFile(file, record) {
+    return matchesFileContent(file, record) && validParents(file.parents)
+      && file.parents.includes(record.targetFolderId || folderId);
+  }
+
+  function metadataMismatch() {
+    return unavailable({ diagnostics: { upstream: 'drive', operation: 'verify_file', reason: 'metadata_mismatch' } });
+  }
+
   async function finish(lease, file) {
-    if (!matchesFile(file, lease.record)) throw unavailable();
-    await lease.save({ status: 'complete', uploadedBytes: lease.record.size, sessionUrl: null });
+    // Only the exact completed file created for this upload may have its parent
+    // repaired. Content, ID, upload marker and trash checks remain mandatory.
+    if (!matchesFileContent(file, lease.record)) throw metadataMismatch();
+    let targetFolderId = lease.record.targetFolderId || folderId;
+    if (!matchesFile(file, lease.record)) {
+      // An omitted/empty parents field is an orphan candidate. Add only the
+      // destination in that case; never remove a parent we have not observed.
+      const currentParents = file.parents === undefined ? [] : file.parents;
+      if (!validParents(currentParents)) throw metadataMismatch();
+      const folder = await lease.call(() => drive.getFile(folderId));
+      if (!folder || typeof folder.id !== 'string' || !/^[A-Za-z0-9_-]{1,256}$/.test(folder.id)
+          || folder.mimeType !== 'application/vnd.google-apps.folder' || folder.trashed === true) {
+        throw metadataMismatch();
+      }
+      targetFolderId = folder.id;
+      if (!currentParents.includes(targetFolderId)) {
+        await lease.call(() => drive.moveFileToFolder({
+          fileId: lease.record.fileId, folderId: targetFolderId, currentParents,
+        }));
+        // A successful move response is not a completion receipt. Re-read the
+        // file and verify all content/identity fields and the canonical parent.
+        file = await fetchFile(lease);
+      }
+      if (!matchesFile(file, { ...lease.record, targetFolderId })) throw metadataMismatch();
+    }
+    await lease.save({ status: 'complete', uploadedBytes: lease.record.size, sessionUrl: null, targetFolderId });
     return lease.record;
   }
 
@@ -172,6 +213,17 @@ export function createUploadService({ repository, drive, folderId, uploadCode, t
     }
   }
 
+  async function recoverExpiredSession(lease) {
+    // An expired session can belong to a file whose final response was lost.
+    // Verify that file before considering a new create with the same ID. A
+    // file with mismatched content or identity must never be replaced or
+    // treated as complete; finish may safely repair its destination parent.
+    const file = await fetchFile(lease);
+    if (file) return finish(lease, file);
+    await lease.save({ sessionUrl: null, uploadedBytes: 0 });
+    return startSession(lease);
+  }
+
   async function synchronize(lease) {
     if (lease.record.status === 'complete') return lease.record;
     if (!lease.record.fileId) {
@@ -180,16 +232,18 @@ export function createUploadService({ repository, drive, folderId, uploadCode, t
       // can only ever create this same file after a retry or instance restart.
       await lease.save({ fileId });
     }
-    const file = await fetchFile(lease);
-    if (file) return finish(lease, file);
-    if (!lease.record.sessionUrl) return startSession(lease);
-    const progress = await lease.call(() => drive.querySession(lease.record.sessionUrl, lease.record.size));
-    if (progress.status === 'complete') return confirmComplete(lease);
-    if (progress.status === 'expired') {
-      await lease.save({ sessionUrl: null, uploadedBytes: 0 });
+    if (!lease.record.sessionUrl) {
+      const file = await fetchFile(lease);
+      if (file) return finish(lease, file);
       return startSession(lease);
     }
-    if (!Number.isSafeInteger(progress.uploadedBytes) || progress.uploadedBytes < 0
+    // For an active transfer the resumable session is authoritative. Metadata
+    // may be incomplete before content is committed; only check final metadata
+    // after the session reports completion or after it has expired.
+    const progress = await lease.call(() => drive.querySession(lease.record.sessionUrl, lease.record.size));
+    if (progress.status === 'complete') return confirmComplete(lease);
+    if (progress.status === 'expired') return recoverExpiredSession(lease);
+    if (progress.status !== 'uploading' || !Number.isSafeInteger(progress.uploadedBytes) || progress.uploadedBytes < 0
         || progress.uploadedBytes >= lease.record.size) throw unavailable();
     await lease.save({ uploadedBytes: progress.uploadedBytes });
     return lease.record;
@@ -249,8 +303,7 @@ export function createUploadService({ repository, drive, folderId, uploadCode, t
         }
         const progress = await lease.call(() => drive.putChunk(lease.record.sessionUrl, range, bytes));
         if (progress.status === 'expired') {
-          await lease.save({ sessionUrl: null, uploadedBytes: 0 });
-          await startSession(lease);
+          await recoverExpiredSession(lease);
           if (lease.record.status === 'complete') return receipt(lease.record);
           throw new ApiError(409, 'The Drive session restarted. Check the upload status before retrying.', { retryable: true });
         }

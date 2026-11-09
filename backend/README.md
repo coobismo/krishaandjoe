@@ -38,6 +38,15 @@ The per-file Firestore lease coordinates retries across instances. A generated
 Drive file ID is persisted before upload so retrying a transfer can only create
 that one destination file.
 
+Completion verifies the configured folder's canonical ID. If a committed file
+has a different parent, the backend first verifies its exact allocated file ID,
+byte size, MIME type, upload marker and non-trashed state. Only that known upload
+can be attached/moved to the configured folder; the backend then independently
+reads its metadata again before confirming success. It never overwrites file
+content or relocates a file that fails those identity/content checks. Retrying
+an existing selection can finish this verification without re-uploading its
+already committed bytes.
+
 ## 1. Create a project and sign in
 
 Create a dedicated [Google Cloud project](https://console.cloud.google.com/projectcreate)
@@ -238,6 +247,40 @@ This measures clients sharing your connection; also test several real phones
 on the venue's Wi-Fi/mobile networks.
 
 ## Runtime and API
+
+### Diagnose an upload that fails immediately
+
+Run the read-only diagnostic against the deployed service:
+
+```bash
+node backend/scripts/diagnose-drive.mjs --project YOUR_PROJECT_ID
+```
+
+It reads the serving revision's pinned credential versions, checks whether the
+Drive owner token can refresh, confirms the destination is a writable folder,
+and calls Drive's file-ID endpoint. No file is uploaded or created. Output
+contains progress and allowlisted failure codes, without secret values or raw
+Google exception bodies. If the service splits traffic across revisions, pass
+`--revision REVISION_NAME` to select one explicitly.
+
+To inspect one failed transfer, add `--upload-id UUID_FROM_THE_FAILED_REQUEST`.
+The diagnostic reads its Firestore checkpoint and Drive metadata, printing
+comparison flags, safe MIME labels and byte counts. It does not modify the file
+or disclose file IDs, filenames or resumable session URLs.
+
+| Result | Next step |
+| --- | --- |
+| `invalid_grant` | Run `authorize-drive.mjs`, then redeploy to use the new refresh-token version. |
+| `invalid_client` | Check that the deployed OAuth client ID, secret and refresh token belong to the same OAuth client. |
+| `accessNotConfigured` or `SERVICE_DISABLED` | Enable Google Drive API in the OAuth client's Google Cloud project. |
+| Folder not visible or not writable | Check `DRIVE_FOLDER_ID` and authorize its owner or an account with Editor access. |
+| All diagnostic checks pass | Redeploy the updated backend, retry once, then inspect its private `upload_request_failed` log for the operation and reason. |
+
+The updated backend logs only allowlisted upstream, operation, reason and
+status fields. Guests continue receiving a generic error. Provider messages,
+tokens, session URLs, folder IDs and guest filenames are excluded from logs.
+
+### Configuration
 
 `npm --prefix backend start` runs the HTTP server. Cloud Run supplies Application
 Default Credentials for Firestore through its runtime service account; no

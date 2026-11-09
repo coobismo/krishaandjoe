@@ -33,9 +33,10 @@ function memoryRepository() {
 function fakeDrive() {
   const files = new Map();
   const sessions = new Map();
-  const calls = { generated: 0, creates: [], chunks: 0, gets: 0, queries: 0, active: 0, maxActive: 0 };
+  const calls = { generated: 0, creates: [], chunks: 0, gets: 0, folderReads: 0, moves: [], queries: 0, active: 0, maxActive: 0 };
   const drive = {
     files, sessions, calls,
+    folder: { id: folderId, mimeType: 'application/vnd.google-apps.folder', trashed: false },
     async generateFileId() {
       calls.active += 1;
       calls.maxActive = Math.max(calls.maxActive, calls.active);
@@ -44,7 +45,18 @@ function fakeDrive() {
       calls.active -= 1;
       return id;
     },
-    async getFile(id) { calls.gets += 1; return structuredClone(files.get(id) || null); },
+    async getFile(id) {
+      calls.gets += 1;
+      if (id === folderId) { calls.folderReads += 1; return structuredClone(drive.folder); }
+      if (calls.moves.length && drive.rereadError) throw new DriveError(503);
+      if (calls.moves.length && drive.rereadMissing) return null;
+      return structuredClone(files.get(id) || null);
+    },
+    async moveFileToFolder(input) {
+      calls.moves.push(structuredClone(input));
+      if (drive.moveError) throw new DriveError(503);
+      if (!drive.moveNoop) files.set(input.fileId, { ...files.get(input.fileId), parents: [input.folderId], ...drive.moveOverride });
+    },
     async createSession(input) {
       if (drive.beforeCreate) await drive.beforeCreate(input);
       calls.creates.push(input);
@@ -119,6 +131,9 @@ test('persists pre-generated ID before create; confirms only the intended comple
   assert.equal(result.uploadedBytes, body.size);
   assert.equal(drive.files.size, 1);
   assert.equal(repository.records.get(body.uploadId).lease, null);
+  assert.equal(repository.records.get(body.uploadId).targetFolderId, folderId);
+  assert.equal(drive.calls.folderReads, 0);
+  assert.equal(drive.calls.moves.length, 0);
   assert.equal(Object.hasOwn(result, 'token'), false);
 });
 
@@ -219,6 +234,72 @@ test('status confirms a dropped final response without resending or duplicating 
   assert.equal(drive.files.size, 1);
 });
 
+test('an active session resumes despite incomplete file metadata until Drive confirms content completion', async () => {
+  const { service, drive, repository } = setup();
+  const body = metadata();
+  const { token } = await service.initialize(body, uploadCode);
+  const record = repository.records.get(body.uploadId);
+  drive.files.set(record.fileId, {
+    id: record.fileId, size: '0', mimeType: body.mimeType,
+    parents: [folderId], appProperties: { uploadId: body.uploadId },
+  });
+  const getsBeforeStatus = drive.calls.gets;
+  const status = await service.status(body.uploadId, token);
+  assert.equal(status.status, 'uploading');
+  assert.equal(status.uploadedBytes, 0);
+  assert.equal(drive.calls.gets, getsBeforeStatus);
+  assert.equal(drive.calls.queries, 1);
+  assert.equal((await complete(service, body, token)).status, 'complete');
+});
+
+test('matching metadata alone cannot complete an active resumable session that still reports308', async () => {
+  const { service, drive, repository } = setup();
+  const body = metadata();
+  const { token } = await service.initialize(body, uploadCode);
+  const record = repository.records.get(body.uploadId);
+  drive.files.set(record.fileId, {
+    id: record.fileId, size: String(body.size), mimeType: body.mimeType,
+    parents: [folderId], appProperties: { uploadId: body.uploadId },
+  });
+  assert.equal((await service.status(body.uploadId, token)).status, 'uploading');
+  assert.equal(repository.records.get(body.uploadId).status, 'uploading');
+  assert.equal(drive.calls.chunks, 0);
+});
+
+test('an expired session recovers a matching completed file after a dropped final response', async () => {
+  const { service, drive, repository } = setup();
+  const body = metadata();
+  const { token } = await service.initialize(body, uploadCode);
+  const sessionUrl = repository.records.get(body.uploadId).sessionUrl;
+  drive.dropFinal = true;
+  await assert.rejects(complete(service, body, token), { status: 503 });
+  drive.sessions.get(sessionUrl).expired = true;
+  assert.equal((await service.status(body.uploadId, token)).status, 'complete');
+  assert.equal(drive.calls.creates.length, 1);
+  assert.equal(drive.calls.generated, 1);
+  assert.equal(drive.files.size, 1);
+});
+
+test('an expired session never restarts over an existing mismatched file', async () => {
+  for (const method of ['status', 'chunk']) {
+    const { service, drive, repository } = setup();
+    const body = metadata();
+    const { token } = await service.initialize(body, uploadCode);
+    const record = repository.records.get(body.uploadId);
+    drive.sessions.get(record.sessionUrl).expired = true;
+    const existingFile = {
+      id: record.fileId, size: '0', mimeType: body.mimeType,
+      parents: [folderId], appProperties: { uploadId: body.uploadId },
+    };
+    drive.files.set(record.fileId, existingFile);
+    await assert.rejects(method === 'status' ? service.status(body.uploadId, token) : complete(service, body, token), { status: 503 });
+    assert.equal(drive.calls.creates.length, 1);
+    assert.equal(drive.calls.generated, 1);
+    assert.equal(repository.records.get(body.uploadId).status, 'uploading');
+    assert.deepEqual(drive.files.get(record.fileId), existingFile);
+  }
+});
+
 test('status discovers accepted bytes after a dropped nonfinal response and stale chunks conflict', async () => {
   const { service, drive } = setup();
   const body = metadata({ size: UPLOAD_CHUNK_BYTES + 1 });
@@ -255,7 +336,7 @@ test('normal PUT avoids extra Drive metadata and status probes until final verif
 test('each final metadata field must verify before a completed receipt', async () => {
   for (const finalOverride of [
     { id: 'wrong-id' }, { size: '8' }, { mimeType: 'video/mp4' },
-    { parents: ['wrong-folder'] }, { appProperties: { uploadId: randomUUID() } }, { trashed: true },
+    { appProperties: { uploadId: randomUUID() } }, { trashed: true },
   ]) {
     const { service, drive, repository } = setup();
     const body = metadata();
@@ -264,7 +345,124 @@ test('each final metadata field must verify before a completed receipt', async (
     await assert.rejects(complete(service, body, token), { status: 503, retryable: true });
     assert.equal(repository.records.get(body.uploadId).status, 'uploading');
     await assert.rejects(service.status(body.uploadId, token), { status: 503 });
+    assert.equal(drive.calls.moves.length, 0);
   }
+});
+
+test('resolves a canonical folder alias before accepting its existing parent, without moving the file', async () => {
+  const { service, drive, repository } = setup();
+  const body = metadata();
+  drive.folder.id = 'canonical-folder';
+  drive.finalOverride = { parents: ['canonical-folder'] };
+  const { token } = await service.initialize(body, uploadCode);
+  assert.equal((await complete(service, body, token)).status, 'complete');
+  assert.equal(repository.records.get(body.uploadId).targetFolderId, 'canonical-folder');
+  assert.equal(drive.calls.folderReads, 1);
+  assert.equal(drive.calls.moves.length, 0);
+});
+
+test('moves only the exact verified uploaded file to the canonical destination and re-verifies it', async () => {
+  const { service, drive, repository } = setup();
+  const body = metadata();
+  drive.folder.id = 'canonical-folder';
+  drive.finalOverride = { parents: ['old-parent'] };
+  const { token } = await service.initialize(body, uploadCode);
+  const result = await complete(service, body, token);
+  const record = repository.records.get(body.uploadId);
+  assert.equal(result.status, 'complete');
+  assert.equal(record.targetFolderId, 'canonical-folder');
+  assert.deepEqual(drive.calls.moves, [{ fileId: record.fileId, folderId: 'canonical-folder', currentParents: ['old-parent'] }]);
+  assert.deepEqual(drive.files.get(record.fileId).parents, ['canonical-folder']);
+  assert.equal(drive.calls.creates.length, 1);
+  assert.equal(drive.calls.generated, 1);
+  assert.equal(drive.calls.gets, 4); // initial absence, final file, folder, moved file
+});
+
+test('wrong content, ID, upload marker, or trashed state never authorizes a parent move', async () => {
+  for (const invalid of [
+    { id: 'other-file' }, { size: '8' }, { mimeType: 'video/mp4' },
+    { appProperties: { uploadId: randomUUID() } }, { trashed: true },
+  ]) {
+    const { service, drive } = setup();
+    const body = metadata();
+    drive.finalOverride = { parents: ['old-parent'], ...invalid };
+    const { token } = await service.initialize(body, uploadCode);
+    await assert.rejects(complete(service, body, token), { status: 503 });
+    assert.equal(drive.calls.moves.length, 0);
+    assert.equal(drive.calls.folderReads, 0);
+  }
+});
+
+test('malformed current parents never authorize a blind move', async () => {
+  for (const parents of [null, [''], [123], 'old-parent', ['old-parent', 'path/with/slash']]) {
+    const { service, drive, repository } = setup();
+    const body = metadata();
+    drive.finalOverride = { parents };
+    const { token } = await service.initialize(body, uploadCode);
+    await assert.rejects(complete(service, body, token), { status: 503 });
+    assert.equal(drive.calls.moves.length, 0);
+    assert.equal(repository.records.get(body.uploadId).status, 'uploading');
+  }
+});
+
+test('an orphaned exact uploaded file can gain the destination without removing unknown parents', async () => {
+  for (const parents of [undefined, []]) {
+    const { service, drive, repository } = setup();
+    const body = metadata();
+    drive.finalOverride = { parents };
+    const { token } = await service.initialize(body, uploadCode);
+    assert.equal((await complete(service, body, token)).status, 'complete');
+    const record = repository.records.get(body.uploadId);
+    assert.deepEqual(drive.calls.moves, [{ fileId: record.fileId, folderId, currentParents: [] }]);
+    assert.deepEqual(drive.files.get(record.fileId).parents, [folderId]);
+    assert.equal(record.targetFolderId, folderId);
+  }
+});
+
+test('an unresolved, non-folder, trashed or invalid canonical destination never authorizes a move', async () => {
+  for (const folder of [null, { id: 'canonical', mimeType: 'image/jpeg' },
+    { id: 'canonical', mimeType: 'application/vnd.google-apps.folder', trashed: true },
+    { id: '', mimeType: 'application/vnd.google-apps.folder' }]) {
+    const { service, drive } = setup();
+    const body = metadata();
+    drive.folder = folder;
+    drive.finalOverride = { parents: ['old-parent'] };
+    const { token } = await service.initialize(body, uploadCode);
+    await assert.rejects(complete(service, body, token), { status: 503 });
+    assert.equal(drive.calls.moves.length, 0);
+  }
+});
+
+test('a failed move or a failed/mismatched metadata reread never produces a completion receipt', async () => {
+  for (const failure of [
+    { moveError: true }, { moveNoop: true }, { rereadError: true }, { rereadMissing: true },
+    { moveOverride: { size: '8' } }, { moveOverride: { appProperties: { uploadId: randomUUID() } } },
+  ]) {
+    const { service, drive, repository } = setup();
+    const body = metadata();
+    Object.assign(drive, failure);
+    drive.finalOverride = { parents: ['old-parent'] };
+    const { token } = await service.initialize(body, uploadCode);
+    await assert.rejects(complete(service, body, token), { status: 503 });
+    assert.equal(drive.calls.moves.length, 1);
+    assert.equal(repository.records.get(body.uploadId).status, 'uploading');
+    assert.equal(repository.records.get(body.uploadId).targetFolderId, undefined);
+  }
+});
+
+test('an expired session can repair the parent of its exact completed file without creating another file', async () => {
+  const { service, drive, repository } = setup();
+  const body = metadata();
+  drive.finalOverride = { parents: ['old-parent'] };
+  const { token } = await service.initialize(body, uploadCode);
+  const sessionUrl = repository.records.get(body.uploadId).sessionUrl;
+  drive.dropFinal = true;
+  await assert.rejects(complete(service, body, token), { status: 503 });
+  drive.sessions.get(sessionUrl).expired = true;
+  assert.equal((await service.status(body.uploadId, token)).status, 'complete');
+  assert.equal(drive.calls.moves.length, 1);
+  assert.equal(drive.calls.creates.length, 1);
+  assert.equal(drive.files.size, 1);
 });
 
 test('missing, wrong and cross-upload credentials cannot initialize, inspect or upload', async () => {

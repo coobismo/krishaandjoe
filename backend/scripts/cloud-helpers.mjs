@@ -71,8 +71,8 @@ export function checkGcloudSignIn() {
   if (!account) throw new Error('No active Google Cloud sign-in. Run gcloud auth login, then retry this setup command.');
 }
 
-export function secretValue(project, name) {
-  return gcloud(['secrets', 'versions', 'access', 'latest', '--secret', name, '--project', project], { quiet: true }).trim();
+export function secretValue(project, name, version = 'latest') {
+  return gcloud(['secrets', 'versions', 'access', version, '--secret', name, '--project', project], { quiet: true }).trim();
 }
 
 export function saveSecret(project, name, value) {
