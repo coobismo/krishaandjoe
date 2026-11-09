@@ -1,0 +1,137 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { createDriveGalleryProvider } from '../src/drive-gallery-provider.mjs';
+
+const thumbUrl = 'https://lh3.googleusercontent.com/drive-storage/private-token=s220';
+const file = (extra = {}) => ({ id: 'file-1', mimeType: 'image/heic', size: '9000000', thumbnailLink: thumbUrl, ...extra });
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+const image = (bytes = Buffer.from('jpeg'), contentType = 'image/jpeg', headers = {}) => new Response(bytes, { headers: { 'content-type': contentType, ...headers } });
+
+function provider(responses = [], settings = {}) {
+  const calls = [];
+  let tokens = 0;
+  const drive = createDriveGalleryProvider({
+    auth: { async getAccessToken() { tokens += 1; return { token: 'server-secret-token' }; } },
+    fetchImpl: async (url, options) => {
+      calls.push({ url, ...options });
+      const response = responses.shift();
+      if (!response) throw new Error('Unexpected Google request with private credentials');
+      return typeof response === 'function' ? response(url, options) : response;
+    },
+    ...settings,
+  });
+  return { drive, calls, tokens: () => tokens };
+}
+
+test('metadata lookup uses a fixed Drive endpoint, bounded fields and server-only OAuth', async () => {
+  const fixture = provider([json({ id: 'file-1', thumbnailLink: thumbUrl }), new Response(null, { status: 404 })]);
+  assert.equal((await fixture.drive.getMetadata('file-1')).id, 'file-1');
+  assert.equal(await fixture.drive.getMetadata('deleted-file'), null);
+  assert.ok(fixture.calls[0].url.startsWith('https://www.googleapis.com/drive/v3/files/file-1?'));
+  assert.ok(fixture.calls[0].url.includes('thumbnailLink'));
+  assert.equal(fixture.calls[0].headers.Authorization, 'Bearer server-secret-token');
+  await assert.rejects(fixture.drive.getMetadata('https://evil.example/private'), { status: 502 });
+  assert.equal(fixture.calls.length, 2);
+});
+
+test('grid thumbnails and previews use best-effort resized Google links without following redirects', async () => {
+  const fixture = provider([image(), image()]);
+  assert.equal((await fixture.drive.thumbnail(file(), { variant: 'thumbnail' })).contentType, 'image/jpeg');
+  await fixture.drive.thumbnail(file(), { variant: 'preview' });
+  assert.ok(fixture.calls[0].url.endsWith('=s480'));
+  assert.ok(fixture.calls[1].url.endsWith('=s1600'));
+  for (const call of fixture.calls) {
+    assert.equal(call.redirect, 'manual');
+    assert.equal(call.headers.Authorization, 'Bearer server-secret-token');
+    assert.ok(call.signal instanceof AbortSignal);
+  }
+});
+
+test('a failed resize falls back to the original link, while query strings remain unchanged', async () => {
+  const fixture = provider([json({ error: { errors: [{ reason: 'forbidden' }] } }, 403), image(), image()]);
+  await fixture.drive.thumbnail(file(), { variant: 'preview' });
+  assert.equal(fixture.calls[1].url, thumbUrl);
+  const signed = `${thumbUrl}?signed=private`;
+  await fixture.drive.thumbnail(file({ thumbnailLink: signed }), { variant: 'preview' });
+  assert.equal(fixture.calls[2].url, signed);
+});
+
+test('unsafe thumbnail links are rejected before token access or any network request', async () => {
+  const fixture = provider();
+  for (const thumbnailLink of [
+    'http://lh3.googleusercontent.com/file=s220',
+    'https://evil.example/file=s220',
+    'https://lh3.googleusercontent.com.evil.example/file=s220',
+    'https://user:password@lh3.googleusercontent.com/file=s220',
+    'https://lh3.googleusercontent.com/file=s220#fragment',
+    'https://unexpected.googleusercontent.com/file=s220',
+  ]) await assert.rejects(fixture.drive.thumbnail(file({ thumbnailLink, mimeType: 'image/jpeg', size: '10' })), { status: 503 });
+  assert.equal(fixture.calls.length, 0);
+  assert.equal(fixture.tokens(), 0);
+});
+
+test('redirects never forward OAuth tokens to another host', async () => {
+  const fixture = provider([
+    new Response(null, { status: 302, headers: { location: 'https://evil.example/steal' } }),
+    new Response(null, { status: 302, headers: { location: 'https://evil.example/steal' } }),
+  ]);
+  await assert.rejects(fixture.drive.thumbnail(file()), { status: 503 });
+  assert.equal(fixture.calls.length, 2);
+  assert.ok(fixture.calls.every((call) => new URL(call.url).hostname === 'lh3.googleusercontent.com'));
+});
+
+test('content-length and streaming bodies are capped at8MiB without accepting SVG or HTML', async () => {
+  const over = 8 * 1024 * 1024 + 1;
+  let cancelled = false;
+  const streaming = new Response(new ReadableStream({
+    start(controller) { controller.enqueue(new Uint8Array(over)); },
+    cancel() { cancelled = true; },
+  }), { headers: { 'content-type': 'image/jpeg' } });
+  for (const response of [
+    image(Buffer.from('small'), 'image/jpeg', { 'content-length': String(over) }),
+    streaming, image(Buffer.from('svg'), 'image/svg+xml'), image(Buffer.from('html'), 'text/html'),
+  ]) {
+    const fixture = provider([response]);
+    await assert.rejects(fixture.drive.thumbnail(file({ thumbnailLink: thumbUrl.replace('s220', 's480') })), { status: 503 });
+  }
+  assert.equal(cancelled, true);
+});
+
+test('small JPEG/PNG without thumbnails may use bounded alt=media; large or HEIC originals are never fetched', async () => {
+  const fixture = provider([image(Buffer.from('png'), 'image/png; charset=binary')]);
+  const result = await fixture.drive.thumbnail(file({ thumbnailLink: undefined, mimeType: 'image/png', size: '3' }));
+  assert.equal(result.contentType, 'image/png');
+  assert.equal(fixture.calls[0].url, 'https://www.googleapis.com/drive/v3/files/file-1?alt=media&supportsAllDrives=true');
+  for (const metadata of [file({ thumbnailLink: undefined }), file({ thumbnailLink: undefined, mimeType: 'image/jpeg', size: '8388609' })]) {
+    await assert.rejects(fixture.drive.thumbnail(metadata), { status: 503, retryable: true });
+  }
+  assert.equal(fixture.calls.length, 1);
+});
+
+test('the grid skips a2MiB original fallback while the larger preview can fetch it', async () => {
+  const fixture = provider([image()]);
+  const metadata = file({ thumbnailLink: undefined, mimeType: 'image/jpeg', size: String(2 * 1024 * 1024) });
+  await assert.rejects(fixture.drive.thumbnail(metadata, { variant: 'thumbnail' }), { status: 503, retryable: true });
+  assert.equal(fixture.calls.length, 0);
+  assert.equal(fixture.tokens(), 0);
+  assert.equal((await fixture.drive.thumbnail(metadata, { variant: 'preview' })).contentType, 'image/jpeg');
+  assert.equal(fixture.calls.length, 1);
+  assert.ok(fixture.calls[0].url.includes('alt=media'));
+});
+
+test('OAuth and provider error details are reduced to safe messages and enum diagnostics', async () => {
+  const fixture = provider([], { auth: { async getAccessToken() {
+    throw Object.assign(new Error('refresh_token=PRIVATE_TOKEN'), { response: { status: 400, data: { error: 'invalid_grant', error_description: 'PRIVATE_TOKEN' } } });
+  } } });
+  await assert.rejects(fixture.drive.getMetadata('file-1'), (error) => {
+    assert.equal(error.diagnostics.reason, 'invalid_grant');
+    assert.doesNotMatch(error.message, /PRIVATE_TOKEN|refresh_token=/);
+    return true;
+  });
+});
+
+test('owner OAuth refresh waits are bounded', async () => {
+  const fixture = provider([], { timeoutMs: 5, auth: { getAccessToken: () => new Promise(() => {}) } });
+  await assert.rejects(fixture.drive.getMetadata('file-1'), { status: 503 });
+  assert.equal(fixture.calls.length, 0);
+});

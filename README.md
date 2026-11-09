@@ -12,6 +12,7 @@ A minimalist ivory-and-blue wedding website boilerplate for Krisha and Joe's wed
 - RSVP form wired for Google Sheets via Google Apps Script
 - FAQ / must-knows section
 - Guest photo and short-video uploader that saves to Google Drive
+- Guest photo gallery with larger previews
 
 ## How to run locally
 
@@ -80,6 +81,33 @@ network latency can still take a few seconds.
 Run `npm test` to check the RSVP POST and redirect flow against local test servers.
 
 ## Guest photo uploads to Google Drive
+
+The uploader, gallery and their navigation links stay hidden until **November
+21, 2026, at 12:00 AM in Asia/Manila**. To test both before that date, open:
+
+```text
+https://krishaandjoe.ph/?preview=memories#memories
+```
+
+The usual guest password still applies. The normal website URL keeps both
+sections hidden before the release date. The schedule is configured in
+`src/features/photos/photoAvailability.mjs`.
+
+### Guest gallery
+
+The gallery shows completed photo uploads, newest first, with larger previews,
+keyboard navigation, pagination and a refresh button. A successful upload
+refreshes the gallery automatically. Videos remain in Drive and are excluded
+from this photo gallery.
+
+Gallery requests use the existing guest code. The backend serves private image
+previews without changing Drive sharing or exposing owner OAuth credentials.
+Newly uploaded HEIC and TIFF photos rely on Drive's preview generation; a retry
+is available while a preview is being prepared.
+
+Deploy the updated backend first, then deploy the website through its existing
+GitHub Pages workflow. No additional environment variable or OAuth permission
+is needed. See [backend gallery details](backend/README.md#guest-photo-gallery).
 
 The recommended backend for 50–100 simultaneous guests is now the **Cloud Run
 resumable uploader**. It supports files up to 500 MB, independent transfers

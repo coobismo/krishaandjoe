@@ -3,7 +3,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test src/features/rsvp/postRsvp.test.mjs src/features/photos/uploadPhoto.test.mjs google-apps-script/photo-upload-web-app.test.mjs",
+    "test": "node --test src/features/rsvp/postRsvp.test.mjs src/features/photos/*.test.mjs google-apps-script/photo-upload-web-app.test.mjs",
     "test:backend": "npm --prefix backend test"
   },
   "dependencies": {

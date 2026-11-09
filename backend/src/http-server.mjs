@@ -7,6 +7,7 @@ const MAX_CHUNK_BYTES = 4 * 1024 * 1024;
 const CORS_METHODS = 'GET, POST, PUT, OPTIONS';
 const CORS_HEADERS = 'Content-Type, Content-Range, X-Upload-Code, X-Upload-Token';
 const ALLOWED_HEADERS = new Set(CORS_HEADERS.toLowerCase().split(', '));
+const GALLERY_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
 
 function apiError(status, message, retryable = false) {
   return new ApiError(status, message, { retryable });
@@ -132,7 +133,7 @@ function preflight(request, response) {
   response.end();
 }
 
-export function createUploadServer({ service, allowedOrigins, logger = console }) {
+export function createUploadServer({ service, gallery, allowedOrigins, logger = console }) {
   const origins = new Set(allowedOrigins);
   const server = createServer(async (request, response) => {
     // An aborted stream can emit its error after readBody has already rejected.
@@ -145,10 +146,12 @@ export function createUploadServer({ service, allowedOrigins, logger = console }
       const url = new URL(request.url, 'http://uploader.invalid');
       const uploadMatch = /^\/v1\/uploads\/([^/]+)$/.exec(url.pathname);
       const collectionPath = url.pathname === '/v1/uploads';
+      const galleryPath = Boolean(gallery) && url.pathname === '/v1/gallery';
+      const galleryImageMatch = gallery && /^\/v1\/gallery\/([^/]+)\/image$/.exec(url.pathname);
       // /health is suitable for the public Cloud Run URL. Keep the original
       // /healthz alias for local checks and expose readiness at the base URL.
       const healthPath = ['/', '/health', '/healthz'].includes(url.pathname);
-      if (!collectionPath && !uploadMatch && !healthPath) {
+      if (!collectionPath && !uploadMatch && !healthPath && !galleryPath && !galleryImageMatch) {
         throw apiError(404, 'This upload endpoint was not found.');
       }
 
@@ -159,6 +162,36 @@ export function createUploadServer({ service, allowedOrigins, logger = console }
 
       if (healthPath && request.method === 'GET') {
         sendJson(response, 200, { ok: true });
+        return;
+      }
+
+      if (galleryPath && request.method === 'GET') {
+        if ([...url.searchParams.keys()].some((key) => key !== 'cursor') || url.searchParams.getAll('cursor').length > 1) {
+          throw apiError(400, 'The album page request is invalid.');
+        }
+        const result = await gallery.list({ cursor: url.searchParams.get('cursor') ?? undefined }, request.headers['x-upload-code']);
+        sendJson(response, 200, result);
+        return;
+      }
+
+      if (galleryImageMatch && request.method === 'GET') {
+        if ([...url.searchParams.keys()].some((key) => key !== 'variant') || url.searchParams.getAll('variant').length > 1) {
+          throw apiError(400, 'The photo preview request is invalid.');
+        }
+        const photo = await gallery.image(galleryImageMatch[1], { variant: url.searchParams.get('variant') ?? 'thumbnail' }, request.headers['x-upload-code']);
+        if (!photo || !Buffer.isBuffer(photo.bytes) || !photo.bytes.length || photo.bytes.length > 8 * 1024 * 1024
+            || !GALLERY_IMAGE_TYPES.has(photo.contentType)) {
+          throw apiError(503, 'This photo preview is temporarily unavailable.', true);
+        }
+        if (response.destroyed || response.writableEnded) return;
+        response.writeHead(200, {
+          'Content-Type': photo.contentType,
+          'Content-Length': photo.bytes.length,
+          'Content-Disposition': 'inline',
+          'Cache-Control': 'private, max-age=300',
+          'Vary': 'Origin, X-Upload-Code',
+        });
+        response.end(photo.bytes);
         return;
       }
 
@@ -195,7 +228,7 @@ export function createUploadServer({ service, allowedOrigins, logger = console }
         return;
       }
 
-      response.setHeader('Allow', healthPath ? 'GET, OPTIONS' : collectionPath ? 'POST, OPTIONS' : 'GET, PUT, OPTIONS');
+      response.setHeader('Allow', healthPath || galleryPath || galleryImageMatch ? 'GET, OPTIONS' : collectionPath ? 'POST, OPTIONS' : 'GET, PUT, OPTIONS');
       throw apiError(405, 'This upload method is not supported.');
     } catch (error) {
       const status = error instanceof ApiError && Number.isInteger(error.status)

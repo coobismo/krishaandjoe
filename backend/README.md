@@ -302,7 +302,53 @@ downloaded service account key is required.
 Metadata: `{uploadId, name, mimeType, size, guestName?}`. Receipts contain
 `{ok, uploadId, status, uploadedBytes, chunkBytes}`, with `token` and `expiresAt`
 on initialization. A `complete` receipt requires verified Drive metadata.
-There are no endpoints for browsing the album or downloading files.
+The gallery endpoints below expose only completed guest photos to callers with
+the existing guest code. Original file browsing remains unavailable.
+
+## Guest photo gallery
+
+The gallery uses a separate durable Firestore collection, `weddingPhotoGallery`.
+Verified image uploads are indexed atomically with upload completion. Album
+entries have no upload-session TTL, so they remain after the temporary
+`weddingPhotoUploads` records expire. Videos and known synthetic connection/load
+test images are excluded.
+
+The first gallery request imports already completed image-upload records that
+still exist in `weddingPhotoUploads`, up to 5,000 legacy records. Open the testing
+link after deployment to import existing photos before those temporary records
+expire. Files added directly to Drive outside this uploader are not imported.
+
+| Endpoint | Behavior |
+| --- | --- |
+| `GET /v1/gallery?cursor=...` | Guest code in `X-Upload-Code`; paginated photo IDs, dates and MIME types |
+| `GET /v1/gallery/:photoId/image?variant=thumbnail` | Guest code; private image bytes for the grid |
+| `GET /v1/gallery/:photoId/image?variant=preview` | Guest code; larger private preview bytes |
+
+The API accepts gallery upload UUIDs, never caller-supplied Drive IDs or URLs.
+Before reading an image it verifies the indexed Drive file's ID, size, MIME,
+upload marker and trash state. There are no parent-folder comparison checks.
+Original filenames, guest names, Drive IDs and thumbnail URLs are omitted from
+public JSON. Owner OAuth stays on the server.
+
+Drive-generated thumbnails are proxied through the backend. Eligible small JPEG
+and PNG originals can be used when Drive has not generated a thumbnail yet;
+the grid fallback is capped at 1 MiB and the larger preview at 8 MiB. HEIC/TIFF
+previews depend on Drive processing. Response bodies are bounded, Google-hosted
+thumbnail URLs are validated, redirects are not followed, and the per-instance
+image cache is capped at 32 MiB for five minutes. Every request checks the guest
+code before cache access. Existing folder sharing settings are preserved.
+
+The website hides both photo sections and their navigation links until
+`2026-11-21T00:00:00+08:00`. The testing link
+`https://krishaandjoe.ph/?preview=memories#memories` reveals both behind the usual
+site password. This release schedule controls the website presentation; the
+backend continues requiring the guest code for gallery reads and uploads.
+
+Redeploy the backend using the existing command, then rebuild/deploy the website:
+
+```bash
+node backend/scripts/deploy.mjs --project wedding-uploader-514213 --origin https://krishaandjoe.ph
+```
 
 See Google's [resumable Drive upload guide](https://developers.google.com/workspace/drive/api/guides/manage-uploads),
 [Cloud Run concurrency guide](https://cloud.google.com/run/docs/about-concurrency),

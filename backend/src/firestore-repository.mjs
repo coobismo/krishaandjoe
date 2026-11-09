@@ -1,3 +1,5 @@
+import { photoForCompletedUpload } from './gallery-index.mjs';
+
 const asDate = (value) => value?.toDate ? value.toDate() : value;
 
 function fromFirestore(data) {
@@ -22,7 +24,11 @@ export function createFirestoreRepository(firestore) {
       return firestore.runTransaction(async (transaction) => {
         const snapshot = await transaction.get(ref);
         const outcome = mutate(snapshot.exists ? fromFirestore(snapshot.data()) : null);
-        if (outcome.record !== undefined) transaction.set(ref, outcome.record);
+        if (outcome.record !== undefined) {
+          transaction.set(ref, outcome.record);
+          const photo = photoForCompletedUpload(outcome.record);
+          if (photo) transaction.set(firestore.collection('weddingPhotoGallery').doc(photo.id), photo, { merge: true });
+        }
         return outcome.value;
       });
     },

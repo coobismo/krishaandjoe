@@ -8,6 +8,7 @@ export const NAV_LINKS = [
   { href: '#details', label: 'Details' },
   { href: '#rsvp', label: 'RSVP' },
   { href: '#memories', label: 'Photos' },
+  { href: '#gallery', label: 'Gallery' },
   { href: '#faq', label: 'FAQs' },
 ];
 

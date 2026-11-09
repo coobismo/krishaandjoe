@@ -3,7 +3,7 @@ import { getUploadLimits, MAX_FILES, uploadPhoto, validatePhoto } from './upload
 
 const fileKey = (file) => `${file.name}:${file.size}:${file.lastModified}`;
 
-export function usePhotoUploads(endpoint, provider = 'apps-script', uploadCode = '') {
+export function usePhotoUploads(endpoint, provider = 'apps-script', uploadCode = '', onUploadsComplete) {
   const limits = getUploadLimits(provider);
   const [files, setFiles] = useState([]);
   const [guestName, setGuestName] = useState('');
@@ -88,6 +88,7 @@ export function usePhotoUploads(endpoint, provider = 'apps-script', uploadCode =
     let uploadedCount = 0;
     const updateFile = (uploadId, update) => {
       if (!isMounted.current) return;
+      if (uploadedCount > 0 && typeof onUploadsComplete === 'function') onUploadsComplete();
       setFiles((current) => current.map((entry) => (
         entry.uploadId === uploadId ? { ...entry, ...update } : entry
       )));

@@ -144,7 +144,7 @@ export function createUploadService({ repository, drive, folderId, uploadCode, t
 
   async function finish(lease, file) {
     if (!matchesFile(file, lease.record)) throw metadataMismatch();
-    await lease.save({ status: 'complete', uploadedBytes: lease.record.size, sessionUrl: null });
+    await lease.save({ status: 'complete', uploadedBytes: lease.record.size, sessionUrl: null, completedAt: now() });
     return lease.record;
   }
 
