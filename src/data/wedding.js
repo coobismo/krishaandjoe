@@ -7,8 +7,18 @@ export const assetPath = (fileName) => `${import.meta.env.BASE_URL}${fileName}`;
 export const NAV_LINKS = [
   { href: '#details', label: 'Details' },
   { href: '#rsvp', label: 'RSVP' },
+  { href: '#memories', label: 'Photos' },
   { href: '#faq', label: 'FAQs' },
 ];
+
+export const PHOTO_UPLOAD = {
+  endpoint: (import.meta.env.VITE_PHOTO_UPLOAD_ENDPOINT || '').trim(),
+  provider: import.meta.env.VITE_PHOTO_UPLOAD_PROVIDER || (
+    (import.meta.env.VITE_PHOTO_UPLOAD_ENDPOINT || '').startsWith('https://script.google.com/')
+      ? 'apps-script' : 'cloud-run'
+  ),
+  uploadCode: (import.meta.env.VITE_SITE_PASSWORD || '').trim(),
+};
 
 export const HERO = {
   title: 'Our Next Chapter',

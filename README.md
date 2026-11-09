@@ -11,6 +11,7 @@ A minimalist ivory-and-blue wedding website boilerplate for Krisha and Joe's wed
 - Wedding details section
 - RSVP form wired for Google Sheets via Google Apps Script
 - FAQ / must-knows section
+- Guest photo and short-video uploader that saves to Google Drive
 
 ## How to run locally
 
@@ -41,6 +42,7 @@ If `VITE_SITE_PASSWORD` is not set, the gate stays locked. This is a client-side
 - `src/sections/` contains one React component per page section.
 - `src/components/` contains shared UI pieces such as dropdowns, direction pickers and gratitude lists.
 - `src/features/rsvp/useRsvpForm.js` owns RSVP form state, submission and local backup behavior.
+- `src/features/photos/` owns file validation, upload receipts, retries and upload queue state.
 - `src/hooks/` contains reusable React hooks.
 
 ## RSVP Google Sheet setup
@@ -76,6 +78,101 @@ deployed flow by submitting an RSVP and checking the sheet. Google startup and
 network latency can still take a few seconds.
 
 Run `npm test` to check the RSVP POST and redirect flow against local test servers.
+
+## Guest photo uploads to Google Drive
+
+The recommended backend for 50–100 simultaneous guests is now the **Cloud Run
+resumable uploader**. It supports files up to 500 MB, independent transfers
+across guests, confirmed byte progress and retries without restarting the file.
+The destination remains the same wedding Drive folder.
+
+Follow the complete [Google Cloud setup guide](backend/README.md): create a
+billing-enabled project, authorize the Drive owner using the included helpers,
+deploy the backend, and set its URL as `VITE_PHOTO_UPLOAD_ENDPOINT`. The website
+uses `VITE_PHOTO_UPLOAD_PROVIDER=cloud-run`. Cloud infrastructure and live Google
+authorization must be configured before uploads become available. Capacity
+must be verified with a live load test after deployment.
+
+### Legacy Apps Script option
+
+The simpler Apps Script backend remains available by explicitly setting
+`VITE_PHOTO_UPLOAD_PROVIDER=apps-script`. Its limits and setup follow below;
+these are not the Cloud Run limits.
+
+The **Photos** navigation link opens a matching “Share your memories” section.
+Guests can select or drop up to 20 photos and short videos, with a 20 MB limit
+per file. Common camera formats, including HEIC/HEIF and MOV, are supported;
+the originals are uploaded without compression. Files are sent one at a time
+to limit memory use on phones. An optional guest name is saved in the file’s
+Drive description.
+
+### Connect the wedding folder
+
+1. Sign in at [Google Apps Script](https://script.google.com/) with an account
+   that can create files in [the wedding album folder](https://drive.google.com/drive/folders/1x_-4yfn1Ar9q1xXvcf0rFoVpGKEzTi_k).
+2. Create a **new, separate project** and replace its default code with
+   [`google-apps-script/photo-upload-web-app.gs`](google-apps-script/photo-upload-web-app.gs).
+   Keep the existing RSVP project separate: both scripts define `doPost`.
+3. Open **Project Settings → Script properties → Add script property**:
+
+   | Property | Value |
+   | --- | --- |
+   | `UPLOAD_FOLDER_ID` | `1x_-4yfn1Ar9q1xXvcf0rFoVpGKEzTi_k` |
+
+4. Choose **Deploy → New deployment → Web app**, set **Execute as: Me** and
+   **Who has access: Anyone**, then authorize Drive access and deploy.
+   Google Workspace policies may restrict the anonymous access option.
+5. Copy the deployment URL ending in `/exec` and add it to `.env.local`:
+
+   ```bash
+   VITE_PHOTO_UPLOAD_PROVIDER=apps-script
+   VITE_PHOTO_UPLOAD_ENDPOINT=https://script.google.com/macros/s/YOUR_UPLOAD_DEPLOYMENT_ID/exec
+   ```
+
+   Restart the local dev server after changing this value. The Drive folder
+   URL itself is not an upload endpoint.
+6. For GitHub Pages, add a repository Actions secret named
+   `VITE_PHOTO_UPLOAD_ENDPOINT` with that same URL, then rebuild/redeploy the
+   website. The existing workflow passes it into Vite.
+
+The site shows a “Photo sharing is opening soon” message until a valid endpoint
+is configured. The folder link alone does not activate uploads. The client-side
+password gate does not secure the public upload endpoint; anyone with the
+endpoint can submit supported files, using the script owner’s storage and quota.
+There is no need to grant guests editor access to the Drive folder. Files inherit
+the folder’s existing sharing settings; the script never makes them public or
+returns album listings.
+
+### Verify the deployed connection
+
+Open the website in a signed-out/private browser window, unlock it, choose a
+small photo and upload it. Check both the “Saved to our album” status and the
+actual file in the destination Drive folder. Repeat on a phone with a HEIC photo
+or short MOV clip if those are expected from guests.
+
+Uploads require a readable JSON receipt from Apps Script before displaying
+success. Requests use `text/plain` and follow the Google response redirect;
+they deliberately do not use `no-cors`, which would hide whether Drive accepted
+the file. A sign-in response, deployment/access error, blocked CORS response or
+network failure leaves the file retryable. Correct the deployment settings if
+uploads cannot be confirmed; do not replace receipt checks with opaque success.
+
+Retries from the same selection reuse the upload ID, and the script checks for
+the existing file before writing a duplicate. Keep the tab open until uploads
+finish; refreshing or removing/reselecting a file creates a new upload ID.
+“Pause after this file” leaves remaining selections ready to resume in the tab.
+Files are not saved in browser storage. Drive filenames have an upload-ID prefix
+to support retries.
+
+After changing the script, deploy a **New version** of its existing deployment
+to retain the endpoint URL. Google’s [web app deployment guide](https://developers.google.com/apps-script/guides/web)
+and [Content Service guide](https://developers.google.com/apps-script/guides/content)
+describe the deployment settings and response redirects.
+
+`npm test` covers upload validation, confirmed receipts, failures/timeouts and
+backend duplicate handling using mocks, plus the existing RSVP transport tests.
+The Drive authorization and browser-to-Google connection require the live check
+above after deploying the Apps Script.
 
 ## Suggested next edits
 

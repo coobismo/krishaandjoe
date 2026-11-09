@@ -10,6 +10,7 @@ import { GratefulHearts } from './sections/GratefulHearts.jsx';
 import { Hero } from './sections/Hero.jsx';
 import { Navigation } from './sections/Navigation.jsx';
 import { PreWedding } from './sections/PreWedding.jsx';
+import { PhotoUpload } from './sections/PhotoUpload.jsx';
 import { RsvpSection } from './sections/RsvpSection.jsx';
 import { WebsitePhoto } from './sections/WebsitePhoto.jsx';
 import { WeddingDetails } from './sections/WeddingDetails.jsx';
@@ -60,6 +61,7 @@ export default function App() {
           submission={rsvp.submission}
         />
         <FaqSection />
+        <PhotoUpload />
         <Footer />
       </main>
     </PasswordGate>
