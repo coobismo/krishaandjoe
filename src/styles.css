@@ -1819,6 +1819,10 @@ footer {
     scrollbar-width: none;
   }
 
+  .navLinks > a:first-child {
+    margin-inline-start: auto;
+  }
+
   .navLinks::-webkit-scrollbar {
     display: none;
   }
