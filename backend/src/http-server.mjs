@@ -188,7 +188,7 @@ export function createUploadServer({ service, gallery, allowedOrigins, logger = 
           'Content-Type': photo.contentType,
           'Content-Length': photo.bytes.length,
           'Content-Disposition': 'inline',
-          'Cache-Control': 'private, max-age=300',
+          'Cache-Control': 'private, no-store',
           'Vary': 'Origin, X-Upload-Code',
         });
         response.end(photo.bytes);

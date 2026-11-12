@@ -70,7 +70,7 @@ async function request(url, { uploadCode, signal, timeoutMs = 30_000 }, read, is
   }, timeoutMs);
   const send = async () => {
     const response = await fetch(url, {
-      method: 'GET', mode: 'cors', credentials: 'omit', redirect: 'error',
+      method: 'GET', mode: 'cors', credentials: 'omit', redirect: 'error', cache: 'no-store',
       headers: { 'X-Upload-Code': uploadCode }, signal: controller.signal,
     });
     if (!response.ok || response.type === 'opaque') {

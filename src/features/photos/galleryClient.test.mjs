@@ -24,6 +24,7 @@ test('gallery requests encode the cursor, authenticate with a header, and return
   assert.equal(request.mode, 'cors');
   assert.equal(request.credentials, 'omit');
   assert.equal(request.redirect, 'error');
+  assert.equal(request.cache, 'no-store');
   assert.ok(!request.url.includes(uploadCode));
 });
 
@@ -58,6 +59,7 @@ test('image requests use the selected variant and return a Blob with a safe disp
   assert.equal(request.headers['X-Upload-Code'], uploadCode);
   assert.equal(request.redirect, 'error');
   assert.equal(request.credentials, 'omit');
+  assert.equal(request.cache, 'no-store');
 });
 
 test('SVG, HTML, unknown, and empty image responses are rejected', async (t) => {

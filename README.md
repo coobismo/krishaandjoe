@@ -100,6 +100,10 @@ keyboard navigation, pagination and a refresh button. A successful upload
 refreshes the gallery automatically. Videos remain in Drive and are excluded
 from this photo gallery.
 
+Deleting a photo in Drive, including moving it to Trash, hides it on the next
+gallery refresh. Use **Refresh gallery** or return to the website tab after
+deleting it. Restoring the same file in Drive makes it eligible to appear again.
+
 Gallery requests use the existing guest code. The backend serves private image
 previews without changing Drive sharing or exposing owner OAuth credentials.
 Newly uploaded HEIC and TIFF photos rely on Drive's preview generation; a retry

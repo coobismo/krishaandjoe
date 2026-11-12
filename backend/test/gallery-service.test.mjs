@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
-import { ApiError } from '../src/errors.mjs';
+import { ApiError, DriveError } from '../src/errors.mjs';
 import { createGalleryService, MAX_GALLERY_IMAGE_BYTES } from '../src/gallery-service.mjs';
 
 const uploadCode = 'wedding-guests';
@@ -56,6 +56,77 @@ test('public album metadata excludes Drive IDs, filenames, URLs, sizes, credenti
   });
   assert.deepEqual(fixture.calls.list, [{ cursor: 'opaque-cursor', limit: 18 }]);
   assert.doesNotMatch(JSON.stringify(result), /private|drive-|expiresAt|token|fileId/);
+});
+
+test('refresh excludes missing and trashed Drive photos, preserves pagination, and notices restores', async () => {
+  const fixture = gallery([photo(), photo(), photo()]);
+  const [visible, deleted, trashed] = fixture.photos;
+  const original = fixture.drive.getMetadata;
+  let restored = false;
+  fixture.drive.getMetadata = async (id) => {
+    const metadata = await original(id);
+    if (restored || id === visible.fileId) return metadata;
+    return id === deleted.fileId ? null : { ...metadata, trashed: true };
+  };
+  const result = await fixture.service.list({}, uploadCode);
+  assert.deepEqual(result.photos.map((item) => item.id), [visible.id]);
+  assert.equal(result.nextCursor, 'next-page');
+  assert.equal(fixture.records.size, 3);
+  assert.equal(fixture.calls.image.length, 0);
+  restored = true;
+  assert.deepEqual((await fixture.service.list({}, uploadCode)).photos.map((item) => item.id), fixture.photos.map((item) => item.id));
+});
+
+test('a page of deleted photos retains its continuation cursor for older memories', async () => {
+  const fixture = gallery([photo(), photo()]);
+  const [deleted, older] = fixture.photos;
+  const original = fixture.drive.getMetadata;
+  fixture.drive.getMetadata = async (id) => id === deleted.fileId ? null : original(id);
+  fixture.repository.list = async ({ cursor }) => cursor === 'older-page'
+    ? { photos: [older], nextCursor: null }
+    : { photos: [deleted], nextCursor: 'older-page' };
+  const first = await fixture.service.list({}, uploadCode);
+  assert.deepEqual(first, { ok: true, photos: [], nextCursor: 'older-page' });
+  const next = await fixture.service.list({ cursor: first.nextCursor }, uploadCode);
+  assert.deepEqual(next.photos.map((item) => item.id), [older.id]);
+  assert.equal(next.nextCursor, null);
+});
+
+test('Drive permission, rate-limit and transient failures are retryable, never treated as deletions', async () => {
+  for (const status of [403, 429, 503]) {
+    const fixture = gallery();
+    const original = fixture.drive.getMetadata;
+    fixture.drive.getMetadata = async () => { throw new DriveError(status, { operation: 'get_file', upstreamStatus: status }); };
+    await assert.rejects(fixture.service.list({}, uploadCode), { status: 503, retryable: true });
+    assert.equal(fixture.records.size, 1);
+    fixture.drive.getMetadata = original;
+    assert.equal((await fixture.service.list({}, uploadCode)).photos.length, 1);
+  }
+});
+
+test('concurrent album refreshes share metadata checks and bound Drive request concurrency', { timeout: 2000 }, async () => {
+  const fixture = gallery(Array.from({ length: 20 }, () => photo()));
+  const original = fixture.drive.getMetadata;
+  const releases = [];
+  let active = 0;
+  let peak = 0;
+  fixture.drive.getMetadata = async (id) => {
+    active += 1;
+    peak = Math.max(peak, active);
+    await new Promise((resolve) => releases.push(resolve));
+    active -= 1;
+    return original(id);
+  };
+  const first = fixture.service.list({}, uploadCode);
+  const second = fixture.service.list({}, uploadCode);
+  for (let wave = 0; wave < 4; wave += 1) {
+    await new Promise((resolve) => setImmediate(resolve));
+    for (const release of releases.splice(0)) release();
+  }
+  const pages = await Promise.all([first, second]);
+  assert.equal(peak, 6);
+  assert.equal(fixture.calls.metadata.length, 20);
+  for (const page of pages) assert.deepEqual(page.photos.map((item) => item.id), fixture.photos.map((item) => item.id));
 });
 
 test('image lookup accepts upload UUIDs only and never exposes arbitrary Drive files', async () => {
@@ -115,6 +186,51 @@ test('thumbnail and preview caches are separate, bounded by LRU bytes, and expir
   fixture.advance(11);
   await fixture.service.image(b.id, { variant: 'preview' }, uploadCode);
   assert.equal(fixture.calls.image.length, 6);
+});
+
+test('deleted or trashed files cannot be served from either image cache and restores fetch fresh bytes', async () => {
+  for (const missing of [null, { trashed: true }]) {
+    const fixture = gallery();
+    const id = fixture.photos[0].id;
+    await fixture.service.image(id, {}, uploadCode);
+    await fixture.service.image(id, { variant: 'preview' }, uploadCode);
+    const original = fixture.drive.getMetadata;
+    fixture.drive.getMetadata = async (fileId) => missing === null ? null : { ...await original(fileId), ...missing };
+    for (const variant of ['thumbnail', 'preview']) {
+      await assert.rejects(fixture.service.image(id, { variant }, uploadCode), { status: 404 });
+    }
+    assert.equal(fixture.calls.image.length, 2);
+    fixture.drive.getMetadata = original;
+    await fixture.service.image(id, {}, uploadCode);
+    await fixture.service.image(id, { variant: 'preview' }, uploadCode);
+    assert.equal(fixture.calls.image.length, 4);
+  }
+});
+
+test('an album refresh evicts both cached image variants for deleted photos', async () => {
+  const fixture = gallery();
+  const id = fixture.photos[0].id;
+  await fixture.service.image(id, {}, uploadCode);
+  await fixture.service.image(id, { variant: 'preview' }, uploadCode);
+  const original = fixture.drive.getMetadata;
+  fixture.drive.getMetadata = async () => null;
+  assert.equal((await fixture.service.list({}, uploadCode)).photos.length, 0);
+  fixture.drive.getMetadata = original;
+  await fixture.service.image(id, {}, uploadCode);
+  await fixture.service.image(id, { variant: 'preview' }, uploadCode);
+  assert.equal(fixture.calls.image.length, 4);
+});
+
+test('cached images still require current metadata and transient failures never return a stale image', async () => {
+  const fixture = gallery();
+  const id = fixture.photos[0].id;
+  await fixture.service.image(id, {}, uploadCode);
+  const original = fixture.drive.getMetadata;
+  fixture.drive.getMetadata = async () => { throw new DriveError(503, { operation: 'get_file' }); };
+  await assert.rejects(fixture.service.image(id, {}, uploadCode), { status: 503, retryable: true });
+  fixture.drive.getMetadata = async (fileId) => ({ ...await original(fileId), size: '124' });
+  await assert.rejects(fixture.service.image(id, {}, uploadCode), { status: 503 });
+  assert.equal(fixture.calls.image.length, 1);
 });
 
 test('unready previews are retryable and failures are never cached', async () => {

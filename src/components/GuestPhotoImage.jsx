@@ -2,7 +2,7 @@ import { Image, LoaderCircle, RotateCw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { fetchGalleryImage } from '../features/photos/galleryClient.mjs';
 
-export function GuestPhotoImage({ endpoint, uploadCode, photo, variant = 'thumbnail' }) {
+export function GuestPhotoImage({ endpoint, uploadCode, photo, variant = 'thumbnail', onUnavailable }) {
   const element = useRef(null);
   const [isVisible, setIsVisible] = useState(variant === 'preview');
   const [url, setUrl] = useState('');
@@ -35,13 +35,15 @@ export function GuestPhotoImage({ endpoint, uploadCode, photo, variant = 'thumbn
         setUrl(objectUrl);
       })
       .catch((failure) => {
-        if (!controller.signal.aborted) setError(failure.message);
+        if (controller.signal.aborted) return;
+        if (failure.status === 404) onUnavailable?.(photo.id);
+        setError(failure.message);
       });
     return () => {
       controller.abort();
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [endpoint, uploadCode, photo.id, variant, isVisible, attempt]);
+  }, [endpoint, uploadCode, photo.id, variant, isVisible, attempt, onUnavailable]);
 
   return (
     <div className={`guestPhotoImage guestPhotoImage-${variant}`} ref={element}>

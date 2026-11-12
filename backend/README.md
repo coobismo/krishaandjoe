@@ -325,10 +325,19 @@ expire. Files added directly to Drive outside this uploader are not imported.
 | `GET /v1/gallery/:photoId/image?variant=preview` | Guest code; larger private preview bytes |
 
 The API accepts gallery upload UUIDs, never caller-supplied Drive IDs or URLs.
-Before reading an image it verifies the indexed Drive file's ID, size, MIME,
-upload marker and trash state. There are no parent-folder comparison checks.
+Before listing or serving a photo, including a cached preview, it checks the
+indexed Drive file's ID, size, MIME, upload marker and trash state. Deleted or
+trashed files are omitted from lists and return 404 for image requests. Drive
+permission, quota and transient errors remain retryable errors, not deletions.
+There are no parent-folder comparison checks.
 Original filenames, guest names, Drive IDs and thumbnail URLs are omitted from
 public JSON. Owner OAuth stays on the server.
+
+Each list request checks one index page with bounded, shared metadata requests.
+A filtered page can be empty and still have a continuation cursor for older
+photos. Index entries remain available so restoring a file in Drive can make it
+visible again. The website refreshes on returning to its tab or using **Refresh
+gallery**; a confirmed missing preview removes its card and closes its lightbox.
 
 Drive-generated thumbnails are proxied through the backend. Eligible small JPEG
 and PNG originals can be used when Drive has not generated a thumbnail yet;
@@ -336,7 +345,10 @@ the grid fallback is capped at 1 MiB and the larger preview at 8 MiB. HEIC/TIFF
 previews depend on Drive processing. Response bodies are bounded, Google-hosted
 thumbnail URLs are validated, redirects are not followed, and the per-instance
 image cache is capped at 32 MiB for five minutes. Every request checks the guest
-code before cache access. Existing folder sharing settings are preserved.
+code before cache access and rechecks Drive before serving cached bytes. Missing
+photos evict both cached variants. Browser image responses and fetches use
+`no-store` so old browser caches cannot bypass deletion checks. Existing folder
+sharing settings are preserved.
 
 The website hides both photo sections and their navigation links until
 `2026-11-21T00:00:00+08:00`. The testing link

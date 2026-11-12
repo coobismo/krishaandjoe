@@ -8,6 +8,7 @@ const SERVED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'im
 export const MAX_GALLERY_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_CACHE_BYTES = 32 * 1024 * 1024;
 const MAX_CACHE_TTL_MS = 5 * 60 * 1000;
+const MAX_METADATA_REQUESTS = 6;
 
 const notFound = () => new ApiError(404, 'Photo not found.');
 const unavailable = (error) => new ApiError(503, 'The photo album is temporarily unavailable. Please try again.', {
@@ -30,6 +31,9 @@ export function createGalleryService({
   const ttl = Number.isSafeInteger(cacheTtlMs) && cacheTtlMs >= 0 ? Math.min(cacheTtlMs, MAX_CACHE_TTL_MS) : MAX_CACHE_TTL_MS;
   const cache = new Map();
   const inflight = new Map();
+  const metadataInflight = new Map();
+  const metadataWaiters = [];
+  let metadataActive = 0;
   let cachedBytes = 0;
   const timestamp = () => { const value = now(); return value instanceof Date ? value.getTime() : value; };
 
@@ -62,23 +66,64 @@ export function createGalleryService({
     cachedBytes += value.bytes.length;
   }
 
+  function forgetPhoto(id) {
+    remove(`${id}:thumbnail`);
+    remove(`${id}:preview`);
+  }
+
+  function readMetadata(fileId) {
+    // Share concurrent checks, but never reuse an earlier availability result:
+    // refreshing the gallery must notice deletions even while images are cached.
+    if (!metadataInflight.has(fileId)) {
+      const pending = (async () => {
+        if (metadataActive >= MAX_METADATA_REQUESTS) {
+          await new Promise((resolve) => metadataWaiters.push(resolve));
+        } else {
+          metadataActive += 1;
+        }
+        try {
+          return await drive.getMetadata(fileId);
+        } finally {
+          if (metadataWaiters.length) metadataWaiters.shift()();
+          else metadataActive -= 1;
+        }
+      })().finally(() => metadataInflight.delete(fileId));
+      metadataInflight.set(fileId, pending);
+    }
+    return metadataInflight.get(fileId);
+  }
+
+  async function verifiedMetadata(photo) {
+    const metadata = await readMetadata(photo.fileId);
+    if (!metadata || metadata.trashed === true) {
+      forgetPhoto(photo.id);
+      return null;
+    }
+    if (metadata.id !== photo.fileId || String(metadata.size) !== String(photo.size)
+        || metadata.mimeType !== photo.mimeType || metadata.appProperties?.uploadId !== photo.id) {
+      forgetPhoto(photo.id);
+      throw unavailable({ diagnostics: { upstream: 'drive', operation: 'verify_file', reason: 'metadata_mismatch' } });
+    }
+    return metadata;
+  }
+
   async function loadImage(id, variant) {
     await repository.seedCompletedUploads();
     const photo = await repository.get(id);
-    if (!validPhoto(photo, id)) throw notFound();
-    const metadata = await drive.getMetadata(photo.fileId);
-    if (!metadata || metadata.trashed === true) throw notFound();
-    if (metadata.id !== photo.fileId || String(metadata.size) !== String(photo.size)
-        || metadata.mimeType !== photo.mimeType || metadata.appProperties?.uploadId !== photo.id) {
-      throw unavailable({ diagnostics: { upstream: 'drive', operation: 'verify_file', reason: 'metadata_mismatch' } });
-    }
+    if (!validPhoto(photo, id)) { forgetPhoto(id); throw notFound(); }
+    const metadata = await verifiedMetadata(photo);
+    if (!metadata) throw notFound();
+    const hit = cached(`${id}:${variant}`);
+    if (hit) return hit;
     const result = await drive.thumbnail(metadata, { variant });
     if (!result || !Buffer.isBuffer(result.bytes) || !result.bytes.length
         || result.bytes.length > MAX_GALLERY_IMAGE_BYTES || !SERVED_IMAGE_TYPES.has(result.contentType)) {
       throw unavailable({ diagnostics: { upstream: 'drive', operation: 'get_thumbnail', reason: 'invalid_response' } });
     }
     // Keep only the image and its safe content type, never provider URLs or IDs.
-    return { bytes: result.bytes, contentType: result.contentType };
+    const value = { bytes: result.bytes, contentType: result.contentType };
+    remember(`${id}:${variant}`, value);
+    return value;
   }
 
   return {
@@ -88,10 +133,14 @@ export function createGalleryService({
       try {
         await repository.seedCompletedUploads();
         const result = await repository.list({ cursor: options.cursor, limit: options.limit ?? 18 });
+        const candidates = result.photos.filter((photo) => validPhoto(photo) && photo.createdAt instanceof Date
+          && Number.isFinite(photo.createdAt.getTime()));
+        const available = await Promise.all(candidates.map(async (photo) => (
+          await verifiedMetadata(photo) ? photo : null
+        )));
         return {
           ok: true,
-          photos: result.photos.filter((photo) => validPhoto(photo) && photo.createdAt instanceof Date
-            && Number.isFinite(photo.createdAt.getTime())).map((photo) => ({
+          photos: available.filter(Boolean).map((photo) => ({
             id: photo.id, createdAt: photo.createdAt.toISOString(), mimeType: photo.mimeType,
           })),
           nextCursor: result.nextCursor || null,
@@ -111,13 +160,8 @@ export function createGalleryService({
       if (!['thumbnail', 'preview'].includes(variant)) throw new ApiError(400, 'The photo preview variant is invalid.');
       const photoId = id.toLowerCase();
       const key = `${photoId}:${variant}`;
-      const hit = cached(key);
-      if (hit) return hit;
       if (inflight.has(key)) return inflight.get(key);
-      const pending = loadImage(photoId, variant).then((value) => {
-        remember(key, value);
-        return value;
-      }).catch((error) => {
+      const pending = loadImage(photoId, variant).catch((error) => {
         if (error instanceof ApiError) throw error;
         throw unavailable(error);
       }).finally(() => { inflight.delete(key); });
