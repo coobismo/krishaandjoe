@@ -133,6 +133,7 @@ export function createDriveGalleryProvider({ auth, fetchImpl = globalThis.fetch,
         if (!response.ok) return failure(response, operation);
         const body = await jsonFrom(response, operation);
         if (!body || !Array.isArray(body.files) || body.files.length > 100 || body.incompleteSearch === true
+            || (body.incompleteSearch !== undefined && typeof body.incompleteSearch !== 'boolean')
             || body.files.some((file) => typeof file?.id !== 'string' || !ID.test(file.id))) {
           throw invalid(response.status);
         }

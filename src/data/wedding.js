@@ -7,8 +7,7 @@ export const assetPath = (fileName) => `${import.meta.env.BASE_URL}${fileName}`;
 export const NAV_LINKS = [
   { href: '#details', label: 'Details' },
   { href: '#rsvp', label: 'RSVP' },
-  { href: '#memories', label: 'Photos' },
-  { href: '#gallery', label: 'Gallery' },
+  { href: '/memories', label: 'Memories', guestPhotos: true },
   { href: '#faq', label: 'FAQs' },
 ];
 

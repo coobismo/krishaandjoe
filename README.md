@@ -11,8 +11,8 @@ A minimalist ivory-and-blue wedding website boilerplate for Krisha and Joe's wed
 - Wedding details section
 - RSVP form wired for Google Sheets via Google Apps Script
 - FAQ / must-knows section
-- Guest photo and short-video uploader that saves to Google Drive
-- Guest photo gallery with larger previews
+- Dedicated `/memories` page with guest photo/video uploads to Google Drive
+- Guest photo gallery with larger previews on the memories page
 
 ## How to run locally
 
@@ -44,6 +44,8 @@ If `VITE_SITE_PASSWORD` is not set, the gate stays locked. This is a client-side
 - `src/components/` contains shared UI pieces such as dropdowns, direction pickers and gratitude lists.
 - `src/features/rsvp/useRsvpForm.js` owns RSVP form state, submission and local backup behavior.
 - `src/features/photos/` owns file validation, upload receipts, retries and upload queue state.
+- `src/pages/MemoriesPage.jsx` contains the dedicated guest memories page.
+- `memories/index.html` and `vite.config.js` provide a real static `/memories/` entry for GitHub Pages.
 - `src/hooks/` contains reusable React hooks.
 
 ## RSVP Google Sheet setup
@@ -82,16 +84,27 @@ Run `npm test` to check the RSVP POST and redirect flow against local test serve
 
 ## Guest photo uploads to Google Drive
 
-The uploader, gallery and their navigation links stay hidden until **November
-21, 2026, at 12:00 AM in Asia/Manila**. To test both before that date, open:
+The uploader and guest gallery live at **https://krishaandjoe.ph/memories**
+(with or without a trailing slash). They are no longer mounted on the homepage.
+The homepage’s single **Memories** navigation link stays hidden until **November
+21, 2026, at 12:00 AM in Asia/Manila**. Before then, visiting `/memories` shows an
+opening-date message without loading the upload form or gallery. To test both
+before that date, open:
 
 ```text
-https://krishaandjoe.ph/?preview=memories#memories
+https://krishaandjoe.ph/memories?preview=memories
 ```
 
-The usual guest password still applies. The normal website URL keeps both
-sections hidden before the release date. The schedule is configured in
-`src/features/photos/photoAvailability.mjs`.
+The usual guest password still applies, and an existing guest unlock carries
+between pages. The schedule is configured in
+`src/features/photos/photoAvailability.mjs`. Adding `?preview=memories` to the
+homepage reveals its Memories link and carries the preview into the new page.
+Old preview bookmarks ending in `/?preview=memories#memories` or `#gallery`
+redirect to the matching section on the new memories page.
+
+The Vite build emits both `dist/index.html` and `dist/memories/index.html`, so
+direct visits work on GitHub Pages without a router fallback or another hosting
+service. Deploy the complete `dist` directory through the existing workflow.
 
 ### Guest gallery
 
@@ -132,7 +145,7 @@ The simpler Apps Script backend remains available by explicitly setting
 `VITE_PHOTO_UPLOAD_PROVIDER=apps-script`. Its limits and setup follow below;
 these are not the Cloud Run limits.
 
-The **Photos** navigation link opens a matching “Share your memories” section.
+The **Memories** navigation link opens the dedicated page’s matching “Share your memories” section.
 Guests can select or drop up to 20 photos and short videos, with a 20 MB limit
 per file. Common camera formats, including HEIC/HEIF and MOV, are supported;
 the originals are uploaded without compression. Files are sent one at a time

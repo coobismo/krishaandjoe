@@ -219,6 +219,74 @@ main {
   font-size: 0.8rem;
 }
 
+.memoriesPageIntro {
+  padding-top: clamp(48px, 7vw, 76px);
+  padding-bottom: 38px;
+  text-align: center;
+}
+
+.memoriesPageIntro .eyebrow {
+  font-size: clamp(0.72rem, 1.6vw, 0.9rem);
+}
+
+.memoriesPageIntro h1 {
+  margin-bottom: 20px;
+  font-size: clamp(3rem, 8vw, 5rem);
+  line-height: 1.05;
+}
+
+.memoriesPageIntro > p:last-child {
+  max-width: 560px;
+  margin: 0 auto;
+  color: var(--muted);
+  font-size: clamp(0.92rem, 1.6vw, 1.05rem);
+}
+
+.memoriesPage .memories {
+  padding-top: clamp(40px, 6vw, 64px);
+}
+
+.memoriesLaunch {
+  padding: 0 var(--section-x) clamp(64px, 8vw, 100px);
+  text-align: center;
+}
+
+.memoriesLaunchCard {
+  width: min(640px, 100%);
+  margin: 0 auto;
+  padding: clamp(30px, 6vw, 52px) clamp(22px, 5vw, 44px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--white);
+  box-shadow: 0 16px 48px rgba(31, 63, 102, 0.06);
+}
+
+.memoriesLaunchCard > svg {
+  margin-bottom: 24px;
+  color: var(--blue);
+}
+
+.memoriesLaunchCard .eyebrow {
+  font-size: 0.76rem;
+}
+
+.memoriesLaunchCard h2 {
+  margin-bottom: 20px;
+  font-size: clamp(2.4rem, 5.5vw, 3.4rem);
+  line-height: 1.1;
+}
+
+.memoriesLaunchCard > p:not(.eyebrow) {
+  margin-bottom: 28px;
+  color: var(--muted);
+  font-size: 0.94rem;
+  line-height: 1.8;
+}
+
+.memoriesLaunchCard .button {
+  display: inline-block;
+}
+
 .guestGallery { text-align: center; background: var(--white); }
 .guestGalleryIntro { max-width: 680px; margin: 0 auto 40px; }
 .guestGalleryIntro > svg { color: var(--blue); margin-bottom: 20px; }
