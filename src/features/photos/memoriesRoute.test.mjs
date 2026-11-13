@@ -1,29 +1,30 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getLegacyMemoriesRedirect, getMemoriesHref, getWeddingHref } from './memoriesRoute.mjs';
+import { getMemoriesRedirect } from './memoriesRoute.mjs';
 
-test('preview navigation carries the explicit bypass between the homepage and memories page', () => {
-  assert.equal(getMemoriesHref('?preview=memories'), '/memories?preview=memories');
-  assert.equal(getWeddingHref('?preview=memories'), '/?preview=memories');
-  assert.equal(`${getWeddingHref('?preview=memories')}#details`, '/?preview=memories#details');
-  assert.equal(getMemoriesHref('?preview=false'), '/memories');
-  assert.equal(getWeddingHref(), '/');
-});
-
-test('existing homepage preview bookmarks reach the corresponding section on the dedicated page', () => {
-  for (const hash of ['#memories', '#gallery']) {
-    assert.equal(getLegacyMemoriesRedirect({ pathname: '/', search: '?preview=memories', hash }), `/memories?preview=memories${hash}`);
+test('old preview links on the memories page redirect to the clean page without looping', () => {
+  for (const pathname of ['/memories', '/memories/', '/memories/index.html']) {
+    assert.equal(getMemoriesRedirect({ pathname, search: '?preview=memories' }), '/memories');
+    assert.equal(getMemoriesRedirect({ pathname, search: '?preview=memories', hash: '#gallery' }), '/memories#gallery');
+    assert.equal(getMemoriesRedirect({ pathname, search: '' }), null);
   }
-  assert.equal(getLegacyMemoriesRedirect({ pathname: '/index.html', search: '?preview=memories&source=bookmark', hash: '#gallery' }), '/memories?preview=memories&source=bookmark#gallery');
 });
 
-test('ordinary homepage links and direct memories paths do not redirect or loop', () => {
+test('existing homepage photo bookmarks reach the corresponding section without a preview query', () => {
+  for (const hash of ['#memories', '#gallery']) {
+    assert.equal(getMemoriesRedirect({ pathname: '/', search: '?preview=memories', hash }), `/memories${hash}`);
+    assert.equal(getMemoriesRedirect({ pathname: '/', hash }), `/memories${hash}`);
+  }
+  assert.equal(getMemoriesRedirect({ pathname: '/index.html', search: '?preview=memories&source=bookmark', hash: '#gallery' }), '/memories#gallery');
+  assert.equal(getMemoriesRedirect({ pathname: '/', search: '?preview=memories' }), '/memories');
+});
+
+test('ordinary homepage links and clean memories paths do not redirect', () => {
   for (const location of [
-    { pathname: '/', search: '', hash: '#memories' },
-    { pathname: '/', search: '?preview=false', hash: '#gallery' },
-    { pathname: '/', search: '?preview=memories', hash: '#details' },
-    { pathname: '/', search: '?preview=memories', hash: '' },
-    { pathname: '/memories', search: '?preview=memories', hash: '#gallery' },
-    { pathname: '/memories/', search: '?preview=memories', hash: '#gallery' },
-  ]) assert.equal(getLegacyMemoriesRedirect(location), null);
+    { pathname: '/', search: '', hash: '' },
+    { pathname: '/', search: '?preview=false', hash: '#details' },
+    { pathname: '/', search: '', hash: '#details' },
+    { pathname: '/memories', search: '', hash: '#gallery' },
+    { pathname: '/memories/', search: '', hash: '#memories' },
+  ]) assert.equal(getMemoriesRedirect(location), null);
 });

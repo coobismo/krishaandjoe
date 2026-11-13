@@ -84,23 +84,15 @@ Run `npm test` to check the RSVP POST and redirect flow against local test serve
 
 ## Guest photo uploads to Google Drive
 
-The uploader and guest gallery live at **https://krishaandjoe.ph/memories**
-(with or without a trailing slash). They are no longer mounted on the homepage.
-The homepage’s single **Memories** navigation link stays hidden until **November
-21, 2026, at 12:00 AM in Asia/Manila**. Before then, visiting `/memories` shows an
-opening-date message without loading the upload form or gallery. To test both
-before that date, open:
+The uploader and guest gallery are available now at
+**https://krishaandjoe.ph/memories** (with or without a trailing slash), behind
+the usual guest password. An existing guest unlock carries between pages.
+No preview mode or special query parameter is needed. Old preview bookmarks
+redirect to the clean memories route, preserving their section anchor.
 
-```text
-https://krishaandjoe.ph/memories?preview=memories
-```
-
-The usual guest password still applies, and an existing guest unlock carries
-between pages. The schedule is configured in
-`src/features/photos/photoAvailability.mjs`. Adding `?preview=memories` to the
-homepage reveals its Memories link and carries the preview into the new page.
-Old preview bookmarks ending in `/?preview=memories#memories` or `#gallery`
-redirect to the matching section on the new memories page.
+The homepage no longer mounts either feature. Its single **Memories** navigation
+link stays hidden until **November 21, 2026, at 12:00 AM in Asia/Manila**; that
+navigation schedule is configured in `src/features/photos/photoAvailability.mjs`.
 
 The Vite build emits both `dist/index.html` and `dist/memories/index.html`, so
 direct visits work on GitHub Pages without a router fallback or another hosting

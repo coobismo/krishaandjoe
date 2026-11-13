@@ -370,12 +370,11 @@ photos evict both cached variants. Browser image responses and fetches use
 `no-store` so old browser caches cannot bypass deletion checks. Existing folder
 sharing settings are preserved.
 
-The website keeps uploads and the guest gallery on `/memories`, with the
-features and homepage navigation link hidden until
-`2026-11-21T00:00:00+08:00`. The testing link
-`https://krishaandjoe.ph/memories?preview=memories` reveals both behind the usual
-site password. This release schedule controls the website presentation; the
-backend continues requiring the guest code for gallery reads and uploads.
+Uploads and the guest gallery are available now at
+`https://krishaandjoe.ph/memories` behind the usual site password. No preview
+mode is needed; old preview bookmarks redirect to the clean route. The homepage
+Memories link appears on `2026-11-21T00:00:00+08:00`, while direct access already
+works. The backend requires the guest code for gallery reads and uploads.
 
 Redeploy the backend using the existing command, then rebuild/deploy the website:
 

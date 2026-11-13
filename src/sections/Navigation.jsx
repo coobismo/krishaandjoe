@@ -1,22 +1,16 @@
 import { assetPath, NAV_LINKS } from '../data/wedding.js';
-import { getMemoriesHref, getWeddingHref } from '../features/photos/memoriesRoute.mjs';
 
 export function Navigation({ showGuestPhotos = false, page = 'home' }) {
-  const search = typeof window === 'undefined' ? '' : window.location.search;
-  const weddingHref = getWeddingHref(search);
   const links = page === 'memories'
     ? [
-      { href: weddingHref, label: 'Wedding' },
-      ...(showGuestPhotos ? [
-        { href: '#memories', label: 'Upload' },
-        { href: '#gallery', label: 'Gallery' },
-      ] : [{ href: `${weddingHref}#details`, label: 'Details' }]),
+      { href: '/', label: 'Wedding' },
+      { href: '#memories', label: 'Upload' },
+      { href: '#gallery', label: 'Gallery' },
     ]
-    : NAV_LINKS.filter((link) => showGuestPhotos || !link.guestPhotos)
-      .map((link) => link.guestPhotos ? { ...link, href: getMemoriesHref(search) } : link);
+    : NAV_LINKS.filter((link) => showGuestPhotos || !link.guestPhotos);
   return (
     <nav className="nav">
-      <a href={page === 'memories' ? weddingHref : '#home'} className="brand">
+      <a href={page === 'memories' ? '/' : '#home'} className="brand">
         <img className="brandLogo" src={assetPath('header.png')} alt="Krisha & Joe" />
       </a>
       <div className="navLinks">

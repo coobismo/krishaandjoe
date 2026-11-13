@@ -1,14 +1,10 @@
-const previewSearch = (search = '') => (
-  new URLSearchParams(search).get('preview') === 'memories' ? '?preview=memories' : ''
-);
-
-export const getMemoriesHref = (search = '') => `/memories${previewSearch(search)}`;
-export const getWeddingHref = (search = '') => `/${previewSearch(search)}`;
-
-// Old preview bookmarks pointed to photo sections on the homepage. Keep them
-// working while leaving the homepage's ordinary preview navigation available.
-export function getLegacyMemoriesRedirect({ pathname = '/', search = '', hash = '' } = {}) {
-  if (!['/', '/index.html'].includes(pathname) || !['#memories', '#gallery'].includes(hash)
-    || !previewSearch(search)) return null;
-  return `/memories?${new URLSearchParams(search)}${hash}`;
+// Keep old photo bookmarks working without carrying a preview mode forward.
+export function getMemoriesRedirect({ pathname = '/', search = '', hash = '' } = {}) {
+  const params = new URLSearchParams(search);
+  const photoHash = ['#memories', '#gallery'].includes(hash) ? hash : '';
+  const isOldHomeLink = ['/', '/index.html'].includes(pathname)
+    && (photoHash || params.get('preview') === 'memories');
+  const isOldPreview = ['/memories', '/memories/', '/memories/index.html'].includes(pathname)
+    && params.has('preview');
+  return isOldHomeLink || isOldPreview ? `/memories${photoHash}` : null;
 }
