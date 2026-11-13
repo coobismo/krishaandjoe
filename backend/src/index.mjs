@@ -27,6 +27,7 @@ const service = createUploadService({
 const gallery = createGalleryService({
   repository: createGalleryRepository(firestore),
   drive: createDriveGalleryProvider({ auth }),
+  folderId: config.folderId,
   uploadCode: config.uploadCode,
   tokenSecret: config.tokenSecret,
 });

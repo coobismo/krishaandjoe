@@ -6,11 +6,12 @@ import { createGalleryService, MAX_GALLERY_IMAGE_BYTES } from '../src/gallery-se
 
 const uploadCode = 'wedding-guests';
 const tokenSecret = 'a-gallery-test-token-secret-at-least-32-characters';
+const folderId = 'wedding-test-folder';
 const photo = (extra = {}) => ({ id: randomUUID(), fileId: `drive-${randomUUID()}`, mimeType: 'image/jpeg', size: 123, createdAt: new Date('2026-11-21T06:00:00Z'), ...extra });
 
 function gallery(photos = [photo()], settings = {}) {
   const records = new Map(photos.map((item) => [item.id, item]));
-  const calls = { seed: 0, list: [], get: [], metadata: [], image: [] };
+  const calls = { seed: 0, list: [], get: [], folder: [], metadata: [], image: [] };
   let instant = 0;
   const repository = {
     async seedCompletedUploads() { calls.seed += 1; },
@@ -18,6 +19,10 @@ function gallery(photos = [photo()], settings = {}) {
     async get(id) { calls.get.push(id); return records.get(id) || null; },
   };
   const drive = {
+    async getFolderFileIds(folder, uploadIds) {
+      calls.folder.push({ folder, uploadIds });
+      return new Set(photos.filter((item) => uploadIds.includes(item.id)).map((item) => item.fileId));
+    },
     async getMetadata(fileId) {
       calls.metadata.push(fileId);
       const record = photos.find((item) => item.fileId === fileId);
@@ -28,7 +33,7 @@ function gallery(photos = [photo()], settings = {}) {
       return { bytes: Buffer.from('jpeg'), contentType: 'image/jpeg', url: 'a-private-link', token: 'not-for-the-client' };
     },
   };
-  const service = createGalleryService({ repository, drive, uploadCode, tokenSecret, now: () => instant, ...settings });
+  const service = createGalleryService({ repository, drive, folderId, uploadCode, tokenSecret, now: () => instant, ...settings });
   return { service, drive, repository, records, calls, photos, advance: (ms) => { instant += ms; } };
 }
 
@@ -41,6 +46,7 @@ test('every album and image request authenticates before reads, cache access, or
     await assert.rejects(fixture.service.image('arbitrary-drive-id', null, code), { status: 401 });
   }
   assert.equal(fixture.calls.seed, 0);
+  assert.equal(fixture.calls.folder.length, 0);
   await fixture.service.image(id, {}, uploadCode);
   await assert.rejects(fixture.service.image(id, {}, 'wrong'), { status: 401 });
   assert.equal(fixture.calls.image.length, 1);
@@ -92,6 +98,59 @@ test('a page of deleted photos retains its continuation cursor for older memorie
   assert.equal(next.nextCursor, null);
 });
 
+test('removing an untrashed owner file from the album folder hides it and moving it back restores it', async () => {
+  const fixture = gallery([photo(), photo()]);
+  const [removed, remaining] = fixture.photos;
+  let movedBack = false;
+  fixture.drive.getFolderFileIds = async () => new Set(movedBack
+    ? [removed.fileId, remaining.fileId] : [remaining.fileId]);
+  const ownerFile = await fixture.drive.getMetadata(removed.fileId);
+  assert.equal(ownerFile.id, removed.fileId);
+  assert.notEqual(ownerFile.trashed, true);
+  const result = await fixture.service.list({}, uploadCode);
+  assert.deepEqual(result.photos.map((item) => item.id), [remaining.id]);
+  assert.equal(result.nextCursor, 'next-page');
+  assert.equal(fixture.records.size, 2);
+  movedBack = true;
+  assert.deepEqual((await fixture.service.list({}, uploadCode)).photos.map((item) => item.id), [removed.id, remaining.id]);
+});
+
+test('folder removal blocks both cached variants even while the owner can still read the original', async () => {
+  const fixture = gallery();
+  const id = fixture.photos[0].id;
+  await fixture.service.image(id, {}, uploadCode);
+  await fixture.service.image(id, { variant: 'preview' }, uploadCode);
+  const original = fixture.drive.getFolderFileIds;
+  fixture.drive.getFolderFileIds = async () => new Set();
+  for (const variant of ['thumbnail', 'preview']) {
+    await assert.rejects(fixture.service.image(id, { variant }, uploadCode), { status: 404 });
+  }
+  assert.equal(fixture.calls.image.length, 2);
+  assert.equal((await fixture.service.list({}, uploadCode)).photos.length, 0);
+  fixture.drive.getFolderFileIds = original;
+  await fixture.service.image(id, {}, uploadCode);
+  await fixture.service.image(id, { variant: 'preview' }, uploadCode);
+  assert.equal(fixture.calls.image.length, 4);
+});
+
+test('failed or malformed folder queries are retryable errors instead of an empty album or missing image', async () => {
+  for (const failure of ['error', 'invalid-response']) {
+    const fixture = gallery();
+    const id = fixture.photos[0].id;
+    await fixture.service.image(id, {}, uploadCode);
+    const original = fixture.drive.getFolderFileIds;
+    fixture.drive.getFolderFileIds = async () => {
+      if (failure === 'error') throw new DriveError(403, { operation: 'list_files', reason: 'insufficientPermissions' });
+      return null;
+    };
+    await assert.rejects(fixture.service.list({}, uploadCode), { status: 503, retryable: true });
+    await assert.rejects(fixture.service.image(id, {}, uploadCode), { status: 503, retryable: true });
+    assert.equal(fixture.records.size, 1);
+    fixture.drive.getFolderFileIds = original;
+    assert.equal((await fixture.service.list({}, uploadCode)).photos.length, 1);
+  }
+});
+
 test('Drive permission, rate-limit and transient failures are retryable, never treated as deletions', async () => {
   for (const status of [403, 429, 503]) {
     const fixture = gallery();
@@ -125,6 +184,7 @@ test('concurrent album refreshes share metadata checks and bound Drive request c
   }
   const pages = await Promise.all([first, second]);
   assert.equal(peak, 6);
+  assert.equal(fixture.calls.folder.length, 1);
   assert.equal(fixture.calls.metadata.length, 20);
   for (const page of pages) assert.deepEqual(page.photos.map((item) => item.id), fixture.photos.map((item) => item.id));
 });
@@ -149,7 +209,7 @@ test('the indexed ID, MIME, size and upload marker must match before serving; de
   }
 });
 
-test('parent metadata is not consulted and returned provider URLs are discarded', async () => {
+test('file parent metadata is not consulted and returned provider URLs are discarded', async () => {
   const fixture = gallery();
   const original = fixture.drive.getMetadata;
   fixture.drive.getMetadata = async (id) => ({ ...await original(id), parents: ['another-folder'] });

@@ -40,8 +40,8 @@ that one destination file.
 
 Completion verifies the allocated file ID, byte size, MIME type, upload marker
 and non-trashed state. The destination folder is set when creating the upload.
-Folder-parent metadata is excluded from completion checks and diagnostic
-comparisons. Retrying an existing selection can confirm its already committed
+Folder-parent metadata is excluded from upload completion checks and transfer
+diagnostic comparisons. Retrying an existing selection can confirm its already committed
 file without re-uploading its bytes.
 
 ## 1. Create a project and sign in
@@ -277,6 +277,23 @@ The updated backend logs only allowlisted upstream, operation, reason and
 status fields. Guests continue receiving a generic error. Provider messages,
 tokens, session URLs, folder IDs and guest filenames are excluded from logs.
 
+### Diagnose a photo that remains in the gallery
+
+```bash
+node backend/scripts/diagnose-gallery.mjs --project YOUR_PROJECT_ID
+```
+
+This read-only helper compares the live gallery with up to 18 recent records
+from the durable gallery index and the deployed Drive owner's view of those
+exact files. It uses the serving revision's pinned secret versions. Output
+contains numbered positions and comparison flags, without file IDs, names,
+image contents, URLs or credentials. It does not change Drive or Firestore.
+
+The report distinguishes a trashed or missing file from a still-readable file
+removed from the wedding folder. Use `--drive-file 'DRIVE_FILE_LINK_OR_ID'` to
+compare a specific original, or `--photo-id UPLOAD_UUID` to inspect one gallery
+entry even after its temporary upload record expires.
+
 ### Configuration
 
 `npm --prefix backend start` runs the HTTP server. Cloud Run supplies Application
@@ -325,18 +342,21 @@ expire. Files added directly to Drive outside this uploader are not imported.
 | `GET /v1/gallery/:photoId/image?variant=preview` | Guest code; larger private preview bytes |
 
 The API accepts gallery upload UUIDs, never caller-supplied Drive IDs or URLs.
-Before listing or serving a photo, including a cached preview, it checks the
-indexed Drive file's ID, size, MIME, upload marker and trash state. Deleted or
-trashed files are omitted from lists and return 404 for image requests. Drive
+Before listing or serving a photo, including a cached preview, it queries the
+configured wedding folder for the indexed upload markers, then checks each
+file's ID, size, MIME, upload marker and trash state. Deleted, trashed or removed
+files are omitted from lists and return 404 for image requests. A file removed
+from a shared folder can remain untrashed and readable to its owner; gallery
+visibility follows the wedding folder. This does not change upload completion
+verification or add file-parent metadata comparisons. Drive
 permission, quota and transient errors remain retryable errors, not deletions.
-There are no parent-folder comparison checks.
 Original filenames, guest names, Drive IDs and thumbnail URLs are omitted from
 public JSON. Owner OAuth stays on the server.
 
 Each list request checks one index page with bounded, shared metadata requests.
 A filtered page can be empty and still have a continuation cursor for older
-photos. Index entries remain available so restoring a file in Drive can make it
-visible again. The website refreshes on returning to its tab or using **Refresh
+photos. Index entries remain available so restoring a file to the wedding
+folder can make it visible again. The website refreshes on returning to its tab or using **Refresh
 gallery**; a confirmed missing preview removes its card and closes its lightbox.
 
 Drive-generated thumbnails are proxied through the backend. Eligible small JPEG

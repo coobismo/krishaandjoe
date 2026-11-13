@@ -1,6 +1,6 @@
 const UPSTREAMS = new Set(['drive', 'oauth', 'firestore', 'unknown']);
 const OPERATIONS = new Set([
-  'generate_file_id', 'get_file', 'create_session', 'query_session', 'put_chunk',
+  'generate_file_id', 'get_file', 'list_files', 'create_session', 'query_session', 'put_chunk',
   'refresh_token', 'verify_file', 'get_thumbnail', 'transaction', 'unknown',
 ]);
 const GOOGLE_REASONS = new Set([

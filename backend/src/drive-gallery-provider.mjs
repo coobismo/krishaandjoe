@@ -4,6 +4,7 @@ import { googleErrorReason, safeDiagnostic } from './diagnostics.mjs';
 const API = 'https://www.googleapis.com/drive/v3/files';
 const FIELDS = 'id,size,mimeType,appProperties,trashed,thumbnailLink';
 const ID = /^[A-Za-z0-9_-]{1,256}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_GRID_ORIGINAL_BYTES = 1024 * 1024;
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
@@ -107,6 +108,43 @@ export function createDriveGalleryProvider({ auth, fetchImpl = globalThis.fetch,
   }
 
   return {
+    async getFolderFileIds(folderId, uploadIds) {
+      const operation = 'list_files';
+      if (typeof folderId !== 'string' || !ID.test(folderId) || !Array.isArray(uploadIds)
+          || uploadIds.length > 36 || uploadIds.some((id) => typeof id !== 'string' || !UUID.test(id))) {
+        throw new DriveError(502, { operation, reason: 'invalidParameter', upstreamStatus: undefined });
+      }
+      const ids = [...new Set(uploadIds)];
+      const files = new Set();
+      if (!ids.length) return files;
+      // Search current folder contents instead of comparing file.parents.
+      // Restrict the query to this page's upload markers, so large wedding
+      // albums do not need a full Drive folder scan on every image request.
+      const markers = ids.map((id) => `appProperties has { key='uploadId' and value='${id}' }`).join(' or ');
+      const query = new URLSearchParams({
+        q: `'${folderId}' in parents and trashed = false and (${markers})`,
+        fields: 'nextPageToken,incompleteSearch,files(id)', pageSize: '100', spaces: 'drive',
+        supportsAllDrives: 'true', includeItemsFromAllDrives: 'true',
+      });
+      const accessToken = await token();
+      const invalid = (status) => new DriveError(502, { operation, reason: 'invalid_response', upstreamStatus: status });
+      for (let page = 0; page < 10; page += 1) {
+        const response = await request(`${API}?${query}`, operation, accessToken);
+        if (!response.ok) return failure(response, operation);
+        const body = await jsonFrom(response, operation);
+        if (!body || !Array.isArray(body.files) || body.files.length > 100 || body.incompleteSearch === true
+            || body.files.some((file) => typeof file?.id !== 'string' || !ID.test(file.id))) {
+          throw invalid(response.status);
+        }
+        for (const file of body.files) files.add(file.id);
+        if (body.nextPageToken === undefined || body.nextPageToken === null || body.nextPageToken === '') return files;
+        if (typeof body.nextPageToken !== 'string' || body.nextPageToken.length > 4096) throw invalid(response.status);
+        query.set('pageToken', body.nextPageToken);
+      }
+      // An incomplete result cannot establish that an indexed file is absent.
+      throw invalid(undefined);
+    },
+
     async getMetadata(fileId) {
       const operation = 'get_file';
       if (typeof fileId !== 'string' || !ID.test(fileId)) throw new DriveError(502, { operation, reason: 'invalidParameter', upstreamStatus: undefined });

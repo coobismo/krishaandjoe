@@ -23,15 +23,19 @@ function validPhoto(photo, id = photo?.id) {
 }
 
 export function createGalleryService({
-  repository, drive, uploadCode, tokenSecret, now = Date.now,
+  repository, drive, folderId, uploadCode, tokenSecret, now = Date.now,
   cacheBytes = MAX_CACHE_BYTES, cacheTtlMs = MAX_CACHE_TTL_MS,
 }) {
+  if (typeof folderId !== 'string' || !/^[A-Za-z0-9_-]{1,256}$/.test(folderId)) {
+    throw new Error('A valid Drive folder ID is required for the gallery.');
+  }
   const auth = createUploadAuth({ uploadCode, tokenSecret });
   const capacity = Number.isSafeInteger(cacheBytes) && cacheBytes >= 0 ? Math.min(cacheBytes, MAX_CACHE_BYTES) : MAX_CACHE_BYTES;
   const ttl = Number.isSafeInteger(cacheTtlMs) && cacheTtlMs >= 0 ? Math.min(cacheTtlMs, MAX_CACHE_TTL_MS) : MAX_CACHE_TTL_MS;
   const cache = new Map();
   const inflight = new Map();
   const metadataInflight = new Map();
+  const folderInflight = new Map();
   const metadataWaiters = [];
   let metadataActive = 0;
   let cachedBytes = 0;
@@ -69,6 +73,22 @@ export function createGalleryService({
   function forgetPhoto(id) {
     remove(`${id}:thumbnail`);
     remove(`${id}:preview`);
+  }
+
+  function folderFiles(photos) {
+    if (!photos.length) return Promise.resolve(new Set());
+    const uploadIds = [...new Set(photos.map((photo) => photo.id))].sort();
+    const key = uploadIds.join(',');
+    if (!folderInflight.has(key)) {
+      const pending = Promise.resolve().then(() => drive.getFolderFileIds(folderId, uploadIds)).then((files) => {
+        if (!(files instanceof Set)) {
+          throw unavailable({ diagnostics: { upstream: 'drive', operation: 'list_files', reason: 'invalid_response' } });
+        }
+        return files;
+      }).finally(() => folderInflight.delete(key));
+      folderInflight.set(key, pending);
+    }
+    return folderInflight.get(key);
   }
 
   function readMetadata(fileId) {
@@ -111,6 +131,10 @@ export function createGalleryService({
     await repository.seedCompletedUploads();
     const photo = await repository.get(id);
     if (!validPhoto(photo, id)) { forgetPhoto(id); throw notFound(); }
+    // A collaborator can remove a shared file from the album folder while
+    // the owner's copy remains untrashed. Folder visibility is independent
+    // of upload completion checks and must also precede image cache access.
+    if (!(await folderFiles([photo])).has(photo.fileId)) { forgetPhoto(id); throw notFound(); }
     const metadata = await verifiedMetadata(photo);
     if (!metadata) throw notFound();
     const hit = cached(`${id}:${variant}`);
@@ -135,7 +159,13 @@ export function createGalleryService({
         const result = await repository.list({ cursor: options.cursor, limit: options.limit ?? 18 });
         const candidates = result.photos.filter((photo) => validPhoto(photo) && photo.createdAt instanceof Date
           && Number.isFinite(photo.createdAt.getTime()));
-        const available = await Promise.all(candidates.map(async (photo) => (
+        const files = await folderFiles(candidates);
+        const present = candidates.filter((photo) => {
+          if (files.has(photo.fileId)) return true;
+          forgetPhoto(photo.id);
+          return false;
+        });
+        const available = await Promise.all(present.map(async (photo) => (
           await verifiedMetadata(photo) ? photo : null
         )));
         return {

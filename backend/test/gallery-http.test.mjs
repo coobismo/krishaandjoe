@@ -13,14 +13,16 @@ async function start(t) {
   const photo = { id, fileId: 'private-drive-file', mimeType: 'image/png', size: png.length, createdAt: new Date('2026-11-21T08:00:00Z') };
   let reads = 0;
   let deleted = false;
+  let removed = false;
   const gallery = createGalleryService({
-    uploadCode: code, tokenSecret: 'a-test-only-secret-with-at-least-32-characters',
+    folderId: 'wedding-test-folder', uploadCode: code, tokenSecret: 'a-test-only-secret-with-at-least-32-characters',
     repository: {
       async seedCompletedUploads() {},
       async list() { reads += 1; return { photos: [photo], nextCursor: null }; },
       async get(key) { reads += 1; return key === id ? photo : null; },
     },
     drive: {
+      async getFolderFileIds() { return new Set(removed ? [] : [photo.fileId]); },
       async getMetadata() { return deleted ? null : { id: photo.fileId, mimeType: photo.mimeType, size: String(photo.size), appProperties: { uploadId: id } }; },
       async thumbnail() { return { bytes: png, contentType: 'image/png' }; },
     },
@@ -33,7 +35,10 @@ async function start(t) {
     server.closeAllConnections();
     await closed;
   });
-  return { base: `http://127.0.0.1:${server.address().port}`, reads: () => reads, setDeleted: (value) => { deleted = value; } };
+  return {
+    base: `http://127.0.0.1:${server.address().port}`, reads: () => reads,
+    setDeleted: (value) => { deleted = value; }, setRemoved: (value) => { removed = value; },
+  };
 }
 
 test('gallery HTTP list requires the guest code and exposes only safe photo metadata', async (t) => {
@@ -77,6 +82,19 @@ test('Drive deletion removes a listed photo and blocks its cached image until re
   setDeleted(false);
   const restored = await fetch(`${base}/v1/gallery`, { headers });
   assert.equal((await restored.json()).photos[0].id, id);
+  assert.equal((await fetch(imageUrl, { headers })).status, 200);
+});
+
+test('removing a still-readable file from the album folder hides it and denies its cached image', async (t) => {
+  const { base, setRemoved } = await start(t);
+  const headers = { Origin: origin, 'X-Upload-Code': code };
+  const imageUrl = `${base}/v1/gallery/${id}/image`;
+  assert.equal((await fetch(imageUrl, { headers })).status, 200);
+  setRemoved(true);
+  assert.equal((await fetch(imageUrl, { headers })).status, 404);
+  const result = await fetch(`${base}/v1/gallery`, { headers });
+  assert.deepEqual(await result.json(), { ok: true, photos: [], nextCursor: null });
+  setRemoved(false);
   assert.equal((await fetch(imageUrl, { headers })).status, 200);
 });
 
