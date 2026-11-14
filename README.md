@@ -101,14 +101,16 @@ service. Deploy the complete `dist` directory through the existing workflow.
 ### Guest gallery
 
 The gallery shows completed photo uploads, newest first, with larger previews,
-keyboard navigation, pagination and a refresh button. A successful upload
-refreshes the gallery automatically. Videos remain in Drive and are excluded
-from this photo gallery.
+keyboard navigation, pagination and a refresh button. It checks for new photos
+about every 30 seconds while the page is visible and online, preserving photos
+already loaded. Automatic checks pause while a photo is open and resume when
+it closes. A successful upload refreshes the gallery immediately. Videos remain
+in Drive and are excluded from this photo gallery.
 
 Deleting a photo in Drive, moving it to Trash, or removing it from the wedding
-folder hides it on the next gallery refresh. Use **Refresh gallery** or return
-to the website tab afterward. Restoring the same file to the wedding folder
-makes it eligible to appear again.
+folder excludes it from new gallery requests. Use **Refresh gallery** to fully
+resync the displayed album after managing files in Drive. Restoring the same
+file to the wedding folder makes it eligible to appear again.
 
 Gallery requests use the existing guest code. The backend serves private image
 previews without changing Drive sharing or exposing owner OAuth credentials.

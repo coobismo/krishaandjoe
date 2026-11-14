@@ -356,8 +356,12 @@ public JSON. Owner OAuth stays on the server.
 Each list request checks one index page with bounded, shared metadata requests.
 A filtered page can be empty and still have a continuation cursor for older
 photos. Index entries remain available so restoring a file to the wedding
-folder can make it visible again. The website refreshes on returning to its tab or using **Refresh
-gallery**; a confirmed missing preview removes its card and closes its lightbox.
+folder can make it visible again. The website checks for new photos about every
+30 seconds while visible and online, pausing while a photo is open. Returning
+to the tab or going online triggers a fresh check. Background checks retain
+older loaded photos and back off after temporary failures; **Refresh gallery**
+fully resyncs the view. A confirmed missing preview removes its card and closes
+its lightbox.
 
 Drive-generated thumbnails are proxied through the backend. Eligible small JPEG
 and PNG originals can be used when Drive has not generated a thumbnail yet;

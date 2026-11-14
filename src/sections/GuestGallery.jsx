@@ -65,8 +65,8 @@ function PhotoLightbox({ photos, selected, onSelect, onClose, onUnavailable, ret
 export function GuestGallery({ refreshKey = 0 }) {
   const { endpoint, uploadCode, provider } = PHOTO_UPLOAD;
   const enabled = provider === 'cloud-run' && isUploadEndpoint(endpoint, provider) && Boolean(uploadCode);
-  const gallery = useGuestGallery({ endpoint, uploadCode, enabled, refreshKey });
   const [selected, setSelected] = useState(null);
+  const gallery = useGuestGallery({ endpoint, uploadCode, enabled, refreshKey, autoRefreshPaused: Boolean(selected) });
   const refreshButton = useRef(null);
   const closeLightbox = useCallback(() => setSelected(null), []);
   const handleUnavailable = useCallback((photoId) => {
