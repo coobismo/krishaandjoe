@@ -321,6 +321,8 @@ main {
 .guestPhotoOpen { position: absolute; bottom: 15px; right: 15px; left: 15px; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 10px 12px; border-radius: 999px; background: rgba(255, 253, 248, 0.94); color: var(--blue); font-size: 0.76rem; opacity: 0; transition: opacity 180ms ease; }
 .guestPhotoCard > button:is(:hover, :focus-visible) .guestPhotoOpen { opacity: 1; }
 .guestPhotoCard figcaption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 3px 10px; margin-top: 11px; color: var(--muted); font-size: 0.7rem; }
+.guestPhotoCard .guestPhotoAttribution { display: -webkit-box; flex: 1 1 0; min-width: 0; overflow: hidden; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.guestPhotoCard figcaption time { flex-shrink: 0; white-space: nowrap; }
 .guestPhotoPlaceholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 100%; padding: 22px; font-size: 0.8rem; text-align: center; }
 .guestPhotoPlaceholder p { margin: 0; max-width: 340px; }
 .guestPhotoPlaceholder .button { display: inline-flex; align-items: center; gap: 8px; margin-top: 6px; }
@@ -336,6 +338,8 @@ main {
 .guestLightboxBody { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: min(850px, 88svh); }
 .guestLightboxHeader, .guestLightboxFooter { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 20px; }
 .guestLightboxHeader p { margin: 0 0 3px; font-family: var(--font-serif); font-size: 1.6rem; }
+.guestLightboxHeader > div { min-width: 0; }
+.guestLightboxHeader .guestPhotoAttribution { display: block; overflow-wrap: anywhere; }
 .guestLightboxHeader span, .guestLightboxFooter span { color: var(--muted); font-size: 0.75rem; }
 .guestLightboxControl { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--blue); cursor: pointer; }
 .guestLightboxControl:hover { background: var(--blue-soft); }
@@ -403,6 +407,13 @@ main {
 .memoryGuestField label span {
   color: var(--muted);
   font-weight: 400;
+}
+
+.memoryGuestHint {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.5;
 }
 
 .memoryGuestField input {

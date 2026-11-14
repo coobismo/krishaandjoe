@@ -2,6 +2,7 @@ import { createUploadAuth } from './auth.mjs';
 import { ApiError } from './errors.mjs';
 import { GALLERY_IMAGE_MIME_TYPES } from './gallery-index.mjs';
 import { safeDiagnostic } from './diagnostics.mjs';
+import { guestNameFromUploadDescription, normalizeGuestName } from './guest-name.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SERVED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
@@ -165,14 +166,19 @@ export function createGalleryService({
           forgetPhoto(photo.id);
           return false;
         });
-        const available = await Promise.all(present.map(async (photo) => (
-          await verifiedMetadata(photo) ? photo : null
-        )));
+        const available = await Promise.all(present.map(async (photo) => {
+          const metadata = await verifiedMetadata(photo);
+          if (!metadata) return null;
+          const guestName = normalizeGuestName(photo.guestName)
+            || guestNameFromUploadDescription(metadata.description);
+          return {
+            id: photo.id, createdAt: photo.createdAt.toISOString(), mimeType: photo.mimeType,
+            ...(guestName ? { guestName } : {}),
+          };
+        }));
         return {
           ok: true,
-          photos: available.filter(Boolean).map((photo) => ({
-            id: photo.id, createdAt: photo.createdAt.toISOString(), mimeType: photo.mimeType,
-          })),
+          photos: available.filter(Boolean),
           nextCursor: result.nextCursor || null,
         };
       } catch (error) {

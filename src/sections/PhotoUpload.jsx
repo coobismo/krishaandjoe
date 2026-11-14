@@ -76,6 +76,7 @@ export function PhotoUpload({ onUploadComplete, compact = false, onUploadingChan
           <label htmlFor="memory-guest-name">Your name <span>(optional)</span></label>
           <input
             autoComplete="name"
+            aria-describedby="memory-guest-name-hint"
             disabled={uploads.isUploading || !isConfigured}
             id="memory-guest-name"
             maxLength={100}
@@ -84,6 +85,7 @@ export function PhotoUpload({ onUploadComplete, compact = false, onUploadingChan
             type="text"
             value={uploads.guestName}
           />
+          <p className="memoryGuestHint" id="memory-guest-name-hint">Shown with your photos in the gallery.</p>
         </div>
 
         <div

@@ -45,6 +45,43 @@ test('malformed gallery pages are rejected before reaching the UI', async (t) =>
   }
 });
 
+test('optional guest names are normalized and projected without exposing private server metadata', async (t) => {
+  const cases = [
+    ['  A\t Guest\n ', 'A Guest'],
+    ['Jose\u0301 李 👩\u200d💻', 'José 李 👩\u200d💻'],
+    ['x'.repeat(100), 'x'.repeat(100)],
+    ['<b>A Guest</b>', '<b>A Guest</b>'],
+  ];
+  let requestIndex = 0;
+  t.mock.method(globalThis, 'fetch', async () => {
+    const [guestName] = cases[requestIndex++];
+    return json({ ok: true, photos: [{
+      ...photo, guestName,
+      ownerEmail: 'PRIVATE_OWNER_ADDRESS', fileId: 'PRIVATE_DRIVE_ID',
+      thumbnailLink: 'https://private.example/PRIVATE_IMAGE_LINK',
+    }], nextCursor: null });
+  });
+  for (const [, expected] of cases) {
+    const result = await getGallery(endpoint, { uploadCode });
+    assert.deepEqual(result, { photos: [{ ...photo, guestName: expected }], nextCursor: null });
+    assert.ok(!JSON.stringify(result).includes('PRIVATE_'));
+  }
+});
+
+test('missing, blank, oversized, and malformed names keep the photo valid with a neutral credit', async (t) => {
+  const values = [undefined, null, '', ' \t\n ', 42, [], { email: 'PRIVATE_EMAIL' }, 'x'.repeat(101), '\ud800', '\u202e\u2066'];
+  let requestIndex = 0;
+  t.mock.method(globalThis, 'fetch', async () => json({
+    ok: true, photos: [{ ...photo, guestName: values[requestIndex++] }], nextCursor: null,
+  }));
+  for (const value of values) {
+    const result = await getGallery(endpoint, { uploadCode });
+    assert.deepEqual(result.photos, [photo], `Optional name must not invalidate a photo: ${typeof value}`);
+    assert.equal(Object.hasOwn(result.photos[0], 'guestName'), false);
+    assert.ok(!JSON.stringify(result).includes('PRIVATE_'));
+  }
+});
+
 test('image requests use the selected variant and return a Blob with a safe display type', async (t) => {
   let request;
   t.mock.method(globalThis, 'fetch', async (url, options) => {

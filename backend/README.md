@@ -350,8 +350,18 @@ from a shared folder can remain untrashed and readable to its owner; gallery
 visibility follows the wedding folder. This does not change upload completion
 verification or add file-parent metadata comparisons. Drive
 permission, quota and transient errors remain retryable errors, not deletions.
-Original filenames, guest names, Drive IDs and thumbnail URLs are omitted from
-public JSON. Owner OAuth stays on the server.
+Gallery JSON includes an optional `guestName` for the requested **Shared by**
+credit. It is normalized and capped at 100 UTF-16 units without splitting
+Unicode characters. Missing or invalid names stay anonymous. Original filenames,
+Drive IDs, raw descriptions and thumbnail URLs are omitted; owner OAuth stays
+on the server.
+
+New gallery entries retain this credit after temporary upload records expire.
+Legacy backfill adds a missing name only when the completed upload matches the
+indexed image. Older photos can also recover an exact, bounded `Shared by …`
+description written by the uploader, after folder and image verification. Other
+Drive descriptions never become gallery captions, and existing explicit credits
+take precedence.
 
 Each list request checks one index page with bounded, shared metadata requests.
 A filtered page can be empty and still have a continuation cursor for older

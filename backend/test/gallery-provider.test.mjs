@@ -31,9 +31,33 @@ test('metadata lookup uses a fixed Drive endpoint, bounded fields and server-onl
   assert.equal(await fixture.drive.getMetadata('deleted-file'), null);
   assert.ok(fixture.calls[0].url.startsWith('https://www.googleapis.com/drive/v3/files/file-1?'));
   assert.ok(fixture.calls[0].url.includes('thumbnailLink'));
+  assert.equal(new URL(fixture.calls[0].url).searchParams.get('fields'), 'id,size,mimeType,appProperties,trashed,thumbnailLink,description');
   assert.equal(fixture.calls[0].headers.Authorization, 'Bearer server-secret-token');
   await assert.rejects(fixture.drive.getMetadata('https://evil.example/private'), { status: 502 });
   assert.equal(fixture.calls.length, 2);
+});
+
+test('the real provider recovers a verified legacy credit without exposing raw Drive descriptions', async () => {
+  const fixture = provider([
+    json({ files: [{ id: 'file-1' }] }),
+    json(file({ mimeType: 'image/jpeg', size: '123', appProperties: { uploadId }, description: 'Shared by  Jo  Cruz' })),
+    json({ files: [{ id: 'file-1' }] }),
+    json(file({ mimeType: 'image/jpeg', size: '123', appProperties: { uploadId }, description: 'Private family notes' })),
+  ]);
+  const photo = { id: uploadId, fileId: 'file-1', mimeType: 'image/jpeg', size: 123, createdAt: new Date('2026-11-12T06:00:00Z') };
+  const service = createGalleryService({
+    drive: fixture.drive, folderId: 'wedding-folder', uploadCode: 'guests', tokenSecret: 'a-test-secret-with-more-than-32-characters',
+    repository: {
+      async seedCompletedUploads() {},
+      async list() { return { photos: [photo], nextCursor: null }; },
+    },
+  });
+  const result = await service.list({}, 'guests');
+  assert.deepEqual(result.photos, [{ id: uploadId, mimeType: photo.mimeType, createdAt: photo.createdAt.toISOString(), guestName: 'Jo Cruz' }]);
+  assert.doesNotMatch(JSON.stringify(result), /description|Shared by|file-1|thumbnailLink/);
+  const anonymous = await service.list({}, 'guests');
+  assert.equal('guestName' in anonymous.photos[0], false);
+  assert.doesNotMatch(JSON.stringify(anonymous), /Private family notes|description/);
 });
 
 test('folder membership searches only the requested upload markers and follows every result page', async () => {

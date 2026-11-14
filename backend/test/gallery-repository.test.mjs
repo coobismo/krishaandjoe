@@ -95,9 +95,13 @@ function fakeFirestore({ photos = [], uploads = [] } = {}) {
             assert.equal(collections[ref.collection].has(ref.id), false, 'create must never overwrite an indexed photo');
             pending.push({ ref, data });
           },
+          update(ref, data) {
+            assert.equal(collections[ref.collection].has(ref.id), true);
+            pending.push({ ref, data, update: true });
+          },
         });
-        for (const { ref, data } of pending) {
-          collections[ref.collection].set(ref.id, data);
+        for (const { ref, data, update } of pending) {
+          collections[ref.collection].set(ref.id, update ? { ...collections[ref.collection].get(ref.id), ...data } : data);
           writes.push({ collection: ref.collection, id: ref.id, data });
         }
         return value;
@@ -176,6 +180,18 @@ test('get validates IDs, normalizes UUID case, and never exposes private upload 
   assert.equal(firestore.queries.length, 0, 'get never scans either collection');
 });
 
+test('gallery reads return only a normalized optional guest credit beside image metadata', async () => {
+  const firestore = fakeFirestore({ photos: [
+    image(1, { guestName: '  José\n Cruz\u0000 ', description: 'private note', sessionUrl: 'secret' }),
+    image(2, { guestName: { unsafe: 'object' } }), image(3, { guestName: '   ' }),
+  ] });
+  const repository = createGalleryRepository(firestore);
+  assert.deepEqual(await repository.get(uuid(1)), image(1, { guestName: 'José Cruz' }));
+  assert.deepEqual(await repository.get(uuid(2)), image(2));
+  assert.deepEqual(await repository.get(uuid(3)), image(3));
+  assert.equal((await repository.list()).photos.find(({ id }) => id === uuid(1)).guestName, 'José Cruz');
+});
+
 test('legacy completed uploads seed durable image-only records and prefer completedAt', async () => {
   const completion = new Date('2026-11-21T10:00:00.000Z');
   const firestore = fakeFirestore({ uploads: [
@@ -194,13 +210,14 @@ test('legacy completed uploads seed durable image-only records and prefer comple
   assert.equal(photos[1].createdAt.getTime(), instant.getTime());
   for (const write of firestore.writes) {
     assert.equal(write.collection, 'weddingPhotoGallery');
-    assert.deepEqual(Object.keys(write.data).sort(), ['createdAt', 'fileId', 'id', 'mimeType', 'size']);
+    assert.deepEqual(Object.keys(write.data).sort(), ['createdAt', 'fileId', 'guestName', 'id', 'mimeType', 'size']);
+    assert.equal(write.data.guestName, 'A guest');
     assert.ok(write.data.createdAt instanceof Date);
   }
   assert.equal(firestore.collections.weddingPhotoUploads.size, 11);
   const seedQuery = firestore.queries.find(({ collection }) => collection === 'weddingPhotoUploads');
   assert.deepEqual(seedQuery.filters, [{ field: 'status', operator: '==', value: 'complete' }]);
-  assert.deepEqual(seedQuery.fields, ['uploadId', 'fileId', 'mimeType', 'size', 'createdAt', 'completedAt', 'status', 'name']);
+  assert.deepEqual(seedQuery.fields, ['uploadId', 'fileId', 'mimeType', 'size', 'createdAt', 'completedAt', 'status', 'name', 'guestName']);
 });
 
 test('backfill is idempotent across concurrent instances and preserves existing timestamps', async () => {
@@ -209,12 +226,31 @@ test('backfill is idempotent across concurrent instances and preserves existing 
   const first = createGalleryRepository(firestore);
   const second = createGalleryRepository(firestore);
   await Promise.all([first.seedCompletedUploads(), first.seedCompletedUploads(), second.seedCompletedUploads()]);
-  assert.equal(firestore.writes.length, 2);
+  assert.equal(firestore.writes.length, 3);
   assert.equal(firestore.collections.weddingPhotoGallery.size, 3);
   assert.equal(firestore.collections.weddingPhotoGallery.get(uuid(1)).createdAt, indexedAt);
+  assert.deepEqual(firestore.writes.find(({ id }) => id === uuid(1)).data, { guestName: 'A guest' });
   const scans = firestore.queries.length;
   await first.seedCompletedUploads();
   assert.equal(firestore.queries.length, scans);
+});
+
+test('legacy credit backfill preserves existing credits and requires matching valid image metadata', async () => {
+  const sources = [
+    image(1, { guestName: 'Original credit' }), image(2, { fileId: 'other-file' }),
+    image(3, { mimeType: 'image/png' }), image(4, { size: 456 }),
+    image(5, { createdAt: new Date(NaN) }), image(6, { guestName: '  ' }), image(7),
+  ];
+  const firestore = fakeFirestore({ photos: sources, uploads: [
+    ...Array.from({ length: 6 }, (_, index) => upload(index + 1, { guestName: '  New\n guest\u0000  ' })),
+    upload(7, { guestName: undefined }),
+  ] });
+  await createGalleryRepository(firestore).seedCompletedUploads();
+  assert.deepEqual(firestore.writes, [{ collection: 'weddingPhotoGallery', id: uuid(6), data: { guestName: 'New guest' } }]);
+  for (const source of sources.filter(({ id }) => id !== uuid(6))) {
+    assert.equal(firestore.collections.weddingPhotoGallery.get(source.id), source);
+  }
+  assert.deepEqual(firestore.collections.weddingPhotoGallery.get(uuid(6)), image(6, { guestName: 'New guest' }));
 });
 
 test('a failed seed is retried on the next list instead of poisoning the instance promise', async () => {

@@ -1,3 +1,5 @@
+import { normalizeGuestName } from './guest-name.mjs';
+
 export const GALLERY_IMAGE_MIME_TYPES = new Set([
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif',
   'image/heic', 'image/heif', 'image/tiff', 'image/bmp',
@@ -16,11 +18,13 @@ export function photoForCompletedUpload(upload) {
   if (upload.name === 'uploader-connection-check.png' || /^load-test-[0-9a-f-]{36}\.bmp$/i.test(upload.name || '')) return null;
   const createdAt = dateValue(upload.completedAt ?? upload.createdAt);
   if (!(createdAt instanceof Date) || !Number.isFinite(createdAt.getTime())) return null;
+  const guestName = normalizeGuestName(upload.guestName);
   return {
     id: upload.uploadId.toLowerCase(),
     fileId: upload.fileId,
     mimeType: upload.mimeType,
     size: upload.size,
     createdAt,
+    ...(guestName ? { guestName } : {}),
   };
 }

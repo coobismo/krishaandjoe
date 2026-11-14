@@ -95,6 +95,13 @@ form in a dialog. Closing the dialog keeps selected files and active uploads in
 the page, with upload activity shown on the button. Each confirmed file updates
 the gallery automatically.
 
+The optional **Your name** field credits the guest sharing each photo. Gallery
+cards and the photo viewer show **Shared by [Name]**; leaving it blank keeps the
+caption **Shared with love**. The upload form explains that the name appears
+with the photos in the gallery. Existing photos can recover their original
+credit from a saved upload record or the uploader-generated Drive description
+when that information is still available.
+
 The homepage no longer mounts either feature. Its single **Memories** navigation
 link stays hidden until **November 21, 2026, at 12:00 AM in Asia/Manila**; that
 navigation schedule is configured in `src/features/photos/photoAvailability.mjs`.

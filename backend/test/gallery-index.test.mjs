@@ -10,14 +10,22 @@ const uploaded = () => ({
   expiresAt: new Date('2026-11-22T07:00:00Z'), sessionUrl: 'private-session', guestName: 'Private guest',
 });
 
-test('gallery entry keeps completed image metadata without upload TTL, guest details or session secrets', () => {
+test('gallery entry keeps image metadata and optional guest credit without upload TTL or session secrets', () => {
   const source = uploaded();
   const photo = photoForCompletedUpload(source);
-  assert.deepEqual(photo, { id, fileId: source.fileId, mimeType: source.mimeType, size: source.size, createdAt: source.completedAt });
+  assert.deepEqual(photo, { id, fileId: source.fileId, mimeType: source.mimeType, size: source.size, createdAt: source.completedAt, guestName: 'Private guest' });
   assert.equal('expiresAt' in photo, false);
   assert.equal('name' in photo, false);
-  assert.equal('guestName' in photo, false);
   assert.equal('sessionUrl' in photo, false);
+});
+
+test('gallery indexing normalizes a guest credit and leaves unnamed or malformed credits optional', () => {
+  assert.equal(photoForCompletedUpload({ ...uploaded(), guestName: '  Jo\n and\t Krisha\u0000  ' }).guestName, 'Jo and Krisha');
+  for (const guestName of [undefined, null, {}, 42, ' ', '\u0000\u200b', '\ud800']) {
+    assert.equal('guestName' in photoForCompletedUpload({ ...uploaded(), guestName }), false);
+  }
+  const shortened = photoForCompletedUpload({ ...uploaded(), guestName: 'J'.repeat(99) + '📷' }).guestName;
+  assert.equal(shortened, 'J'.repeat(99));
 });
 
 test('unconfirmed, invalid, empty and non-photo uploads are excluded', () => {
@@ -58,5 +66,6 @@ test('upload completion and its durable gallery entry are written in the same Fi
   assert.deepEqual(writes.map(({ ref }) => ref.collection), ['weddingPhotoUploads', 'weddingPhotoGallery']);
   assert.equal(writes[1].ref.document, id);
   assert.equal(writes[1].data.createdAt, upload.completedAt);
+  assert.equal(writes[1].data.guestName, 'Private guest');
   assert.equal('expiresAt' in writes[1].data, false);
 });

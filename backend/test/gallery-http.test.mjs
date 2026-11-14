@@ -9,8 +9,8 @@ const code = 'test-gallery-code';
 const origin = 'https://wedding.example';
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aCk8AAAAASUVORK5CYII=', 'base64');
 
-async function start(t) {
-  const photo = { id, fileId: 'private-drive-file', mimeType: 'image/png', size: png.length, createdAt: new Date('2026-11-21T08:00:00Z') };
+async function start(t, { guestName } = {}) {
+  const photo = { id, fileId: 'private-drive-file', mimeType: 'image/png', size: png.length, createdAt: new Date('2026-11-21T08:00:00Z'), ...(guestName ? { guestName } : {}) };
   let reads = 0;
   let deleted = false;
   let removed = false;
@@ -52,6 +52,15 @@ test('gallery HTTP list requires the guest code and exposes only safe photo meta
   const result = await response.json();
   assert.deepEqual(result, { ok: true, photos: [{ id, createdAt: '2026-11-21T08:00:00.000Z', mimeType: 'image/png' }], nextCursor: null });
   assert.equal(JSON.stringify(result).includes('private-drive-file'), false);
+});
+
+test('gallery HTTP includes the optional normalized guest credit in its public photo DTO', async (t) => {
+  const { base } = await start(t, { guestName: '  Jo\n Cruz\u0000  ' });
+  const response = await fetch(`${base}/v1/gallery`, { headers: { Origin: origin, 'X-Upload-Code': code } });
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    ok: true, photos: [{ id, createdAt: '2026-11-21T08:00:00.000Z', mimeType: 'image/png', guestName: 'Jo Cruz' }], nextCursor: null,
+  });
 });
 
 test('gallery images use authenticated binary responses with private caching and safe content types', async (t) => {

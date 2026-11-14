@@ -91,6 +91,17 @@ async function request(url, { uploadCode, signal, timeoutMs = 30_000 }, read, is
   }
 }
 
+function publicGuestName(value) {
+  if (typeof value !== 'string' || value.length > 4096) return '';
+  for (const character of value) {
+    const unit = character.charCodeAt(0);
+    if (character.length === 1 && unit >= 0xd800 && unit <= 0xdfff) return '';
+  }
+  const name = value.normalize('NFC').replace(/\s+/gu, ' ')
+    .replace(/[\p{Cc}\p{Cf}]/gu, (character) => /[\u200c\u200d]/u.test(character) ? character : '').trim();
+  return name.length <= 100 && /[\p{L}\p{N}\p{P}\p{S}]/u.test(name) ? name : '';
+}
+
 function galleryPage(body) {
   if (body?.ok !== true || !Array.isArray(body.photos) || body.photos.length > 100
     || (body.nextCursor !== null && !validCursor(body.nextCursor))) throw loadError(false, 'invalid-response');
@@ -102,9 +113,13 @@ function galleryPage(body) {
       || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(photo.createdAt)
       || timestamp.toISOString().slice(0, 19) !== photo.createdAt.slice(0, 19)) throw loadError(false, 'invalid-response');
     seen.add(photo.id);
+    const guestName = publicGuestName(photo.guestName);
     // Project explicitly: Drive file IDs, URLs and other server fields never
     // leave this module as gallery metadata.
-    return { id: photo.id, createdAt: timestamp.toISOString(), mimeType: photo.mimeType };
+    return {
+      id: photo.id, createdAt: timestamp.toISOString(), mimeType: photo.mimeType,
+      ...(guestName ? { guestName } : {}),
+    };
   });
   return { photos, nextCursor: body.nextCursor };
 }

@@ -1,6 +1,7 @@
 import { FieldPath } from '@google-cloud/firestore';
 import { ApiError } from './errors.mjs';
 import { GALLERY_IMAGE_MIME_TYPES, photoForCompletedUpload } from './gallery-index.mjs';
+import { normalizeGuestName } from './guest-name.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const FILE_ID = /^[A-Za-z0-9_-]{1,256}$/;
@@ -30,7 +31,11 @@ function fromSnapshot(snapshot) {
   const createdAt = asDate(data?.createdAt);
   if (!UUID.test(snapshot.id) || snapshot.id !== snapshot.id.toLowerCase()
       || data?.id !== snapshot.id || !createdAt || !validMetadata(data)) return null;
-  return { id: snapshot.id, fileId: data.fileId, mimeType: data.mimeType, size: data.size, createdAt };
+  const guestName = normalizeGuestName(data.guestName);
+  return {
+    id: snapshot.id, fileId: data.fileId, mimeType: data.mimeType, size: data.size, createdAt,
+    ...(guestName ? { guestName } : {}),
+  };
 }
 
 function cursorFor(id, createdAt) {
@@ -75,7 +80,17 @@ export function createGalleryRepository(firestore) {
     const ref = gallery.doc(record.id);
     return firestore.runTransaction(async (transaction) => {
       const existing = await transaction.get(ref);
-      if (!existing.exists) transaction.create(ref, record);
+      if (!existing.exists) {
+        transaction.create(ref, record);
+      } else if (record.guestName) {
+        const photo = fromSnapshot(existing);
+        // Recover a missing credit only for the same verified indexed image.
+        // Keep explicit credits and all existing image metadata/timestamps.
+        if (photo && !photo.guestName && photo.fileId === record.fileId
+            && photo.mimeType === record.mimeType && photo.size === record.size) {
+          transaction.update(ref, { guestName: record.guestName });
+        }
+      }
     });
   }
 
@@ -86,7 +101,7 @@ export function createGalleryRepository(firestore) {
       const pageSize = Math.min(SEED_PAGE_SIZE, SEED_MAX_UPLOADS - scanned);
       let query = uploads.where('status', '==', 'complete')
         .orderBy(FieldPath.documentId(), 'asc')
-        .select('uploadId', 'fileId', 'mimeType', 'size', 'createdAt', 'completedAt', 'status', 'name')
+        .select('uploadId', 'fileId', 'mimeType', 'size', 'createdAt', 'completedAt', 'status', 'name', 'guestName')
         .limit(pageSize);
       if (after) query = query.startAfter(after);
       const page = await query.get();

@@ -2,7 +2,7 @@ import { ApiError, DriveError } from './errors.mjs';
 import { googleErrorReason, safeDiagnostic } from './diagnostics.mjs';
 
 const API = 'https://www.googleapis.com/drive/v3/files';
-const FIELDS = 'id,size,mimeType,appProperties,trashed,thumbnailLink';
+const FIELDS = 'id,size,mimeType,appProperties,trashed,thumbnailLink,description';
 const ID = /^[A-Za-z0-9_-]{1,256}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;

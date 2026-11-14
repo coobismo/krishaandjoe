@@ -64,6 +64,55 @@ test('public album metadata excludes Drive IDs, filenames, URLs, sizes, credenti
   assert.doesNotMatch(JSON.stringify(result), /private|drive-|expiresAt|token|fileId/);
 });
 
+test('public album credits use normalized optional names without exposing other upload fields', async () => {
+  const shared = photo({ guestName: '  José\n Cruz\u0000  ', name: 'private-name.jpg', email: 'owner@example.test', sessionUrl: 'private-session' });
+  const anonymous = photo({ guestName: { bad: 'invalid' } });
+  const blank = photo({ guestName: '\t ' });
+  const fixture = gallery([shared, anonymous, blank]);
+  const { photos } = await fixture.service.list({}, uploadCode);
+  assert.deepEqual(photos[0], { id: shared.id, createdAt: shared.createdAt.toISOString(), mimeType: shared.mimeType, guestName: 'José Cruz' });
+  for (const result of photos.slice(1)) assert.equal('guestName' in result, false);
+  assert.doesNotMatch(JSON.stringify(photos), /private|owner@example|fileId|sessionUrl|email/);
+});
+
+test('verified legacy photos recover uploader credits from only the exact description format', async () => {
+  const credits = [
+    { indexed: undefined, description: 'Shared by  Jo  Cruz ', expected: 'Jo Cruz' },
+    { indexed: ' ', description: 'Shared by ' + 'J'.repeat(120), expected: 'J'.repeat(100) },
+    { indexed: 'Original credit', description: 'Shared by Another name', expected: 'Original credit' },
+    { indexed: undefined, description: 'Private notes about guests' },
+    { indexed: undefined, description: 'Shared by Jo\nPrivate note' },
+    { indexed: undefined, description: 'Shared by Jo\n' },
+    { indexed: undefined, description: 'Shared by ' + 'J'.repeat(121) },
+  ];
+  const fixture = gallery(credits.map(({ indexed }) => photo({ guestName: indexed })));
+  const original = fixture.drive.getMetadata;
+  fixture.drive.getMetadata = async (id) => ({
+    ...await original(id), description: credits[fixture.photos.findIndex((record) => record.fileId === id)].description,
+  });
+  const { photos } = await fixture.service.list({}, uploadCode);
+  assert.deepEqual(photos.map((result) => result.guestName), credits.map(({ expected }) => expected));
+  assert.equal(fixture.calls.metadata.length, credits.length, 'legacy fallback reuses the existing verification request');
+  assert.doesNotMatch(JSON.stringify(photos), /Shared by|description|Private notes|Private note|fileId|thumbnailLink/);
+  for (const result of photos.slice(3)) assert.equal('guestName' in result, false);
+});
+
+test('legacy descriptions are never read before upload metadata and current folder visibility are verified', async () => {
+  for (const change of [{ id: 'other-file' }, { size: 124 }, { mimeType: 'image/png' }, { appProperties: {} }, { trashed: true }]) {
+    const fixture = gallery();
+    const base = await fixture.drive.getMetadata(fixture.photos[0].fileId);
+    let descriptionsRead = 0;
+    fixture.drive.getMetadata = async () => ({ ...base, ...change, get description() { descriptionsRead += 1; return 'Shared by Private'; } });
+    if (change.trashed) assert.deepEqual((await fixture.service.list({}, uploadCode)).photos, []);
+    else await assert.rejects(fixture.service.list({}, uploadCode), { status: 503 });
+    assert.equal(descriptionsRead, 0);
+  }
+  const fixture = gallery();
+  fixture.drive.getFolderFileIds = async () => new Set();
+  assert.deepEqual((await fixture.service.list({}, uploadCode)).photos, []);
+  assert.equal(fixture.calls.metadata.length, 0);
+});
+
 test('refresh excludes missing and trashed Drive photos, preserves pagination, and notices restores', async () => {
   const fixture = gallery([photo(), photo(), photo()]);
   const [visible, deleted, trashed] = fixture.photos;

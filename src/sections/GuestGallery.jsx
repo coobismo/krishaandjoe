@@ -6,6 +6,8 @@ import { useGuestGallery } from '../features/photos/useGuestGallery.js';
 import { isUploadEndpoint } from '../features/photos/uploadPhoto.mjs';
 
 const sharedDate = (value) => new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' }).format(new Date(value));
+const sharedBy = (photo) => typeof photo.guestName === 'string' && photo.guestName
+  ? `Shared by ${photo.guestName}` : 'Shared with love';
 
 function PhotoLightbox({ photos, selected, onSelect, onClose, onUnavailable, returnFocusRef }) {
   const dialog = useRef(null);
@@ -47,7 +49,7 @@ function PhotoLightbox({ photos, selected, onSelect, onClose, onUnavailable, ret
         <header className="guestLightboxHeader">
           <div>
             <p id="guest-lightbox-title">A day to remember</p>
-            <span>Shared on {sharedDate(selected.createdAt)}</span>
+            <span className="guestPhotoAttribution">{sharedBy(selected)} · {sharedDate(selected.createdAt)}</span>
           </div>
           <button aria-label="Close photo" className="guestLightboxControl" onClick={onClose} ref={closeButton} type="button"><X size={24} aria-hidden="true" /></button>
         </header>
@@ -98,7 +100,7 @@ export function GuestGallery({ refreshKey = 0, onAddMemory }) {
                 <GuestPhotoImage endpoint={endpoint} uploadCode={uploadCode} photo={photo} onUnavailable={handleUnavailable} />
                 <span className="guestPhotoOpen">View memory <ArrowRight size={15} aria-hidden="true" /></span>
               </button>
-              <figcaption>Shared with love <span>{sharedDate(photo.createdAt)}</span></figcaption>
+              <figcaption><span className="guestPhotoAttribution">{sharedBy(photo)}</span><time dateTime={photo.createdAt}>{sharedDate(photo.createdAt)}</time></figcaption>
             </figure>
           ))}
         </div>}

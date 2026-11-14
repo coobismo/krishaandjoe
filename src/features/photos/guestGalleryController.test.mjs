@@ -115,6 +115,21 @@ test('upload completion immediately adds new photos without clearing the loaded 
   assert.equal(state().nextCursor, 'oldest');
 });
 
+test('automatic updates preserve guest credits on older photos and accept refreshed credits on the head', async (t) => {
+  const { state, complete } = setup(t);
+  const credited = (numbers, nextCursor, name) => ({
+    ...page(numbers, nextCursor), photos: numbers.map((number) => ({ ...photo(number), guestName: name })),
+  });
+  await complete('refresh', credited([5, 4], 'older', 'Jamie'));
+  await complete('loadMore', credited([3, 2], 'oldest', 'Tess'));
+  await complete('check', credited([6, 5], 'updated-head', 'Alex'));
+  assert.deepEqual(state().photos.map(({ guestName }) => guestName), ['Alex', 'Alex', 'Jamie', 'Tess', 'Tess']);
+  await complete('check', credited([6, 5], 'updated-head', 'Alex Rivera'));
+  assert.equal(state().photos[0].guestName, 'Alex Rivera');
+  assert.equal(state().photos.at(-1).guestName, 'Tess');
+  assert.equal(state().nextCursor, 'oldest');
+});
+
 test('uploads completed during pagination queue a single update and leave the active request running', async (t) => {
   const { controller, calls, state, complete } = setup(t);
   await complete('refresh', page([5, 4], 'older'));
