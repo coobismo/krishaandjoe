@@ -34,7 +34,7 @@ function fileStatus(entry, provider) {
   return 'Uploading…';
 }
 
-export function PhotoUpload({ onUploadComplete }) {
+export function PhotoUpload({ onUploadComplete, compact = false, onUploadingChange }) {
   const endpoint = PHOTO_UPLOAD.endpoint;
   const { provider, uploadCode } = PHOTO_UPLOAD;
   const limits = getUploadLimits(provider);
@@ -45,6 +45,10 @@ export function PhotoUpload({ onUploadComplete }) {
   const pendingCount = uploads.files.filter((entry) => entry.status !== 'success').length;
   const savedCount = uploads.files.length - pendingCount;
   const canSelect = isConfigured && !uploads.isUploading && uploads.files.length < MAX_FILES;
+
+  useEffect(() => {
+    onUploadingChange?.(uploads.isUploading);
+  }, [onUploadingChange, uploads.isUploading]);
 
   function selectFiles(event) {
     uploads.addFiles(Array.from(event.target.files || []));
@@ -58,14 +62,12 @@ export function PhotoUpload({ onUploadComplete }) {
   }
 
   return (
-    <section id="memories" className="section memories" aria-labelledby="memories-title">
+    <section id="memories" className={`section memories${compact ? ' memoryUploadCompact' : ''}`} aria-labelledby="memories-title">
       <div className="memoriesIntro">
-        <Camera className="memoriesCamera" size={30} strokeWidth={1.4} aria-hidden="true" />
-        <p className="eyebrow">Through your eyes</p>
-        <h2 id="memories-title">Share your memories</h2>
+        {!compact && <><Camera className="memoriesCamera" size={30} strokeWidth={1.4} aria-hidden="true" /><p className="eyebrow">Through your eyes</p></>}
+        <h2 id="memories-title">{compact ? 'Add a memory' : 'Share your memories'}</h2>
         <p className="sectionLead">
-          The happy tears, the dance-floor moments, the little things we might miss.
-          We’d love to see our day through your eyes.
+          {compact ? 'Photos and videos, shared with love.' : 'The happy tears, the dance-floor moments, the little things we might miss. We’d love to see our day through your eyes.'}
         </p>
       </div>
 
@@ -90,8 +92,7 @@ export function PhotoUpload({ onUploadComplete }) {
           onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setIsDragging(false); }}
           onDrop={dropFiles}
         >
-          <Upload size={28} strokeWidth={1.5} aria-hidden="true" />
-          <p className="memoryDropTitle">A little moment. A lasting memory.</p>
+          {!compact && <><Upload size={28} strokeWidth={1.5} aria-hidden="true" /><p className="memoryDropTitle">A little moment. A lasting memory.</p></>}
           <p className="memoryDropHint" id="memory-file-hint">Choose photos & videos, or drag them here.</p>
           <input
             accept={ACCEPTED_FILES}

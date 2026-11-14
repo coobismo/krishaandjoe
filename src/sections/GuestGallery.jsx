@@ -62,7 +62,7 @@ function PhotoLightbox({ photos, selected, onSelect, onClose, onUnavailable, ret
   );
 }
 
-export function GuestGallery({ refreshKey = 0 }) {
+export function GuestGallery({ refreshKey = 0, onAddMemory }) {
   const { endpoint, uploadCode, provider } = PHOTO_UPLOAD;
   const enabled = provider === 'cloud-run' && isUploadEndpoint(endpoint, provider) && Boolean(uploadCode);
   const [selected, setSelected] = useState(null);
@@ -80,20 +80,15 @@ export function GuestGallery({ refreshKey = 0 }) {
 
   return (
     <section className="section guestGallery" id="gallery" aria-labelledby="guest-gallery-title">
-      <div className="guestGalleryIntro">
-        <Images size={28} strokeWidth={1.4} aria-hidden="true" />
-        <p className="eyebrow">Our day, together</p>
-        <h2 id="guest-gallery-title" ref={galleryHeading} tabIndex={-1}>The moments you shared</h2>
-        <p className="sectionLead">A little collection of love, laughter, and everything in between. Thank you for helping us remember it all.</p>
-      </div>
+      <h2 className="srOnly" id="guest-gallery-title" ref={galleryHeading} tabIndex={-1}>Guest memories</h2>
       <div className="guestGalleryContent">
-        {enabled && <div className="guestGalleryToolbar"><span>{gallery.photos.length ? `${gallery.photos.length} ${gallery.photos.length === 1 ? 'memory' : 'memories'} to look back on` : 'Our shared album'}</span></div>}
+        {enabled && <div className="guestGalleryToolbar"><span>{gallery.photos.length} {gallery.photos.length === 1 ? 'memory' : 'memories'}</span></div>}
         {!enabled ? (
           <div className="guestGalleryEmpty"><Images size={32} strokeWidth={1.3} aria-hidden="true" /><p>Our shared album is getting ready.</p></div>
         ) : gallery.isLoading && !gallery.photos.length ? (
           <div className="guestGalleryEmpty" role="status"><LoaderCircle className="memorySpinner" size={28} aria-hidden="true" /><p>Gathering your memories…</p></div>
         ) : !gallery.photos.length && !gallery.error ? (
-          <div className="guestGalleryEmpty"><Images size={32} strokeWidth={1.3} aria-hidden="true" />{gallery.nextCursor ? <p>More memories are available below.</p> : <><h3>The first memory could be yours.</h3><p>Share a photo above and help us fill this album with moments from our day.</p><a className="button secondary" href="#memories">Share a memory</a></>}</div>
+          <div className="guestGalleryEmpty"><Images size={28} strokeWidth={1.3} aria-hidden="true" />{gallery.nextCursor ? <p>More memories are available below.</p> : <><h3>No memories yet</h3><p>Be the first to add one.</p>{onAddMemory && <button className="button secondary" onClick={onAddMemory} type="button">Add a memory</button>}</>}</div>
         ) : null}
         {gallery.error && <div className="guestGalleryError" role="alert"><p>{gallery.error}</p><button className="memoryTextButton" onClick={gallery.refresh} type="button">Try again</button></div>}
         {gallery.photos.length > 0 && <div className="guestPhotoGrid">

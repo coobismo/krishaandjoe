@@ -207,38 +207,105 @@ main {
   scroll-margin-top: calc(var(--nav-height) + 16px);
 }
 
-.memoriesPageIntro {
-  padding-top: clamp(48px, 7vw, 76px);
-  padding-bottom: 38px;
-  text-align: center;
-}
-
-.memoriesPageIntro .eyebrow {
-  font-size: clamp(0.72rem, 1.6vw, 0.9rem);
-}
-
-.memoriesPageIntro h1 {
-  margin-bottom: 20px;
-  font-size: clamp(3rem, 8vw, 5rem);
-  line-height: 1.05;
-}
-
-.memoriesPageIntro > p:last-child {
-  max-width: 560px;
+.memoriesPageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  width: min(calc(100% - 2 * var(--section-x)), var(--content-wide));
   margin: 0 auto;
+  padding: 30px 0 24px;
+}
+
+.memoriesPageHeader .eyebrow {
+  margin: 0 0 5px;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+}
+
+.memoriesPageHeader h1 {
+  margin: 0;
+  font-size: clamp(2rem, 5vw, 3rem);
+  line-height: 1.1;
+}
+
+.memoriesPageHeader .memoryAddButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 7px;
+  min-height: 44px;
+  padding: 10px 14px;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.memoryUploadDialog {
+  width: min(600px, calc(100% - 24px));
+  max-height: calc(100svh - 28px);
+  padding: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--white);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+
+.memoryUploadDialog::backdrop {
+  background: rgba(18, 30, 46, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+.memoryUploadDialogBar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  padding: 6px 8px 0;
+  background: var(--white);
+}
+
+.memoryUploadDialogClose {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--blue);
+  cursor: pointer;
+}
+
+.memoryUploadDialogClose:hover {
+  background: var(--blue-soft);
+}
+
+.memoryUploadDialogClose:focus-visible,
+.memoriesPageHeader .memoryAddButton:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+}
+
+.memoryUploadDialogBody {
+  padding: 0 clamp(18px, 4vw, 28px) 24px;
+}
+
+.memoryUploadDialogHint {
+  margin: 16px 0 0;
   color: var(--muted);
-  font-size: clamp(0.92rem, 1.6vw, 1.05rem);
+  font-size: 0.76rem;
+  line-height: 1.6;
 }
 
-.memoriesPage .memories {
-  padding-top: clamp(40px, 6vw, 64px);
-}
-
-.guestGallery { text-align: center; background: var(--white); }
-.guestGalleryIntro { max-width: 680px; margin: 0 auto 40px; }
-.guestGalleryIntro > svg { color: var(--blue); margin-bottom: 20px; }
-.guestGallery h2 { font-size: clamp(2.6rem, 6vw, 4rem); line-height: 1.1; margin-bottom: 20px; }
-.guestGallery .sectionLead { font-size: clamp(1rem, 1.6vw, 1.12rem); font-weight: 400; }
+.guestGallery { padding-top: 0; padding-bottom: clamp(48px, 7vw, 80px); text-align: center; background: var(--ivory); }
 .guestGalleryContent { width: min(980px, 100%); margin: 0 auto; }
 .guestGalleryToolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 20px; margin-bottom: 20px; color: var(--muted); font-size: 0.8rem; text-align: left; }
 .guestGallery button, .guestLightbox button { font-family: inherit; }
@@ -257,7 +324,7 @@ main {
 .guestPhotoPlaceholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 100%; padding: 22px; font-size: 0.8rem; text-align: center; }
 .guestPhotoPlaceholder p { margin: 0; max-width: 340px; }
 .guestPhotoPlaceholder .button { display: inline-flex; align-items: center; gap: 8px; margin-top: 6px; }
-.guestGalleryEmpty { display: flex; flex-direction: column; align-items: center; gap: 16px; padding: 50px 24px; border: 1px dashed var(--line); border-radius: var(--radius-md); background: var(--ivory); color: var(--blue); }
+.guestGalleryEmpty { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 40px 24px; border: 1px dashed var(--line); border-radius: var(--radius-md); background: var(--white); color: var(--blue); }
 .guestGalleryEmpty h3 { margin: 0; font-family: var(--font-serif); font-size: 1.9rem; font-weight: 400; }
 .guestGalleryEmpty p { margin: 0; max-width: 420px; color: var(--muted); font-size: 0.9rem; }
 .guestGalleryEmpty .button { margin-top: 10px; font-size: 0.86rem; }
@@ -582,6 +649,59 @@ main {
   margin: 0;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.memoryUploadCompact.memories {
+  padding: 0;
+  background: transparent;
+}
+
+.memoryUploadCompact .memoriesIntro {
+  margin: 0 0 20px;
+  text-align: left;
+}
+
+.memoryUploadCompact h2 {
+  margin-bottom: 8px;
+  font-size: 2.25rem;
+}
+
+.memoryUploadCompact .sectionLead {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.memoryUploadCompact .memoriesPanel {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.memoryUploadCompact .memoryGuestField {
+  margin-bottom: 16px;
+}
+
+.memoryUploadCompact .memoryDropzone {
+  padding: 20px 16px;
+}
+
+.memoryUploadCompact .memoryDropHint {
+  margin-bottom: 14px;
+}
+
+.memoryUploadCompact .memoryLimits,
+.memoryUploadCompact .memoryFootnote {
+  margin-top: 12px;
+}
+
+.memoryUploadCompact .memoryQueueHeading,
+.memoryUploadCompact .memoryUploadActions {
+  margin-top: 16px;
 }
 
 .memorySpinner {

@@ -2,11 +2,7 @@ import { assetPath, NAV_LINKS } from '../data/wedding.js';
 
 export function Navigation({ showGuestPhotos = false, page = 'home' }) {
   const links = page === 'memories'
-    ? [
-      { href: '/', label: 'Wedding' },
-      { href: '#memories', label: 'Upload' },
-      { href: '#gallery', label: 'Gallery' },
-    ]
+    ? [{ href: '/', label: 'Wedding' }]
     : NAV_LINKS.filter((link) => showGuestPhotos || !link.guestPhotos);
   return (
     <nav className="nav">

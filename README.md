@@ -88,7 +88,12 @@ The uploader and guest gallery are available now at
 **https://krishaandjoe.ph/memories** (with or without a trailing slash), behind
 the usual guest password. An existing guest unlock carries between pages.
 No preview mode or special query parameter is needed. Old preview bookmarks
-redirect to the clean memories route, preserving their section anchor.
+redirect to the clean memories route; an upload bookmark opens the upload dialog.
+
+The gallery is the main view. A compact **Add a memory** button opens the upload
+form in a dialog. Closing the dialog keeps selected files and active uploads in
+the page, with upload activity shown on the button. Each confirmed file updates
+the gallery automatically.
 
 The homepage no longer mounts either feature. Its single **Memories** navigation
 link stays hidden until **November 21, 2026, at 12:00 AM in Asia/Manila**; that
