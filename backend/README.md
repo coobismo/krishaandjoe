@@ -359,8 +359,9 @@ photos. Index entries remain available so restoring a file to the wedding
 folder can make it visible again. The website checks for new photos about every
 30 seconds while visible and online, pausing while a photo is open. Returning
 to the tab or going online triggers a fresh check. Background checks retain
-older loaded photos and back off after temporary failures; **Refresh gallery**
-fully resyncs the view. A confirmed missing preview removes its card and closes
+older loaded photos and back off after temporary failures. Each confirmed file
+upload triggers a fresh check without resetting the loaded pages. Reloading
+the page fully resyncs the view. A confirmed missing preview removes its card and closes
 its lightbox.
 
 Drive-generated thumbnails are proxied through the backend. Eligible small JPEG

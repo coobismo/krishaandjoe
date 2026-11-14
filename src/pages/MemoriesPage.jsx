@@ -18,7 +18,7 @@ export function MemoriesPage() {
           <h1>Our shared memories</h1>
           <p>The little moments, the happy tears, and all the love in between.</p>
         </header>
-        <PhotoUpload onUploadsComplete={refreshAfterUpload} />
+        <PhotoUpload onUploadComplete={refreshAfterUpload} />
         <GuestGallery refreshKey={galleryVersion} />
         <Footer />
       </main>

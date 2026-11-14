@@ -241,7 +241,6 @@ main {
 .guestGallery .sectionLead { font-size: clamp(1rem, 1.6vw, 1.12rem); font-weight: 400; }
 .guestGalleryContent { width: min(980px, 100%); margin: 0 auto; }
 .guestGalleryToolbar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 20px; margin-bottom: 20px; color: var(--muted); font-size: 0.8rem; text-align: left; }
-.guestGalleryToolbar button { display: inline-flex; gap: 7px; align-items: center; }
 .guestGallery button, .guestLightbox button { font-family: inherit; }
 .guestGallery :is(button, a):focus-visible, .guestLightbox button:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; }
 .guestPhotoGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(14px, 2.5vw, 26px); }

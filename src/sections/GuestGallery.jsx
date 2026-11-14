@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Images, LoaderCircle, RotateCw, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Images, LoaderCircle, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GuestPhotoImage } from '../components/GuestPhotoImage.jsx';
 import { PHOTO_UPLOAD } from '../data/wedding.js';
@@ -67,7 +67,7 @@ export function GuestGallery({ refreshKey = 0 }) {
   const enabled = provider === 'cloud-run' && isUploadEndpoint(endpoint, provider) && Boolean(uploadCode);
   const [selected, setSelected] = useState(null);
   const gallery = useGuestGallery({ endpoint, uploadCode, enabled, refreshKey, autoRefreshPaused: Boolean(selected) });
-  const refreshButton = useRef(null);
+  const galleryHeading = useRef(null);
   const closeLightbox = useCallback(() => setSelected(null), []);
   const handleUnavailable = useCallback((photoId) => {
     gallery.removePhoto(photoId);
@@ -83,11 +83,11 @@ export function GuestGallery({ refreshKey = 0 }) {
       <div className="guestGalleryIntro">
         <Images size={28} strokeWidth={1.4} aria-hidden="true" />
         <p className="eyebrow">Our day, together</p>
-        <h2 id="guest-gallery-title">The moments you shared</h2>
+        <h2 id="guest-gallery-title" ref={galleryHeading} tabIndex={-1}>The moments you shared</h2>
         <p className="sectionLead">A little collection of love, laughter, and everything in between. Thank you for helping us remember it all.</p>
       </div>
       <div className="guestGalleryContent">
-        {enabled && <div className="guestGalleryToolbar"><span>{gallery.photos.length ? `${gallery.photos.length} ${gallery.photos.length === 1 ? 'memory' : 'memories'} to look back on` : 'Our shared album'}</span><button className="memoryTextButton" disabled={gallery.isLoading} onClick={gallery.refresh} ref={refreshButton} type="button"><RotateCw size={14} aria-hidden="true" /> Refresh gallery</button></div>}
+        {enabled && <div className="guestGalleryToolbar"><span>{gallery.photos.length ? `${gallery.photos.length} ${gallery.photos.length === 1 ? 'memory' : 'memories'} to look back on` : 'Our shared album'}</span></div>}
         {!enabled ? (
           <div className="guestGalleryEmpty"><Images size={32} strokeWidth={1.3} aria-hidden="true" /><p>Our shared album is getting ready.</p></div>
         ) : gallery.isLoading && !gallery.photos.length ? (
@@ -109,7 +109,7 @@ export function GuestGallery({ refreshKey = 0 }) {
         </div>}
         {gallery.nextCursor && <div className="guestGalleryMore"><button className="button secondary memoryChoose" disabled={gallery.isLoading || gallery.isLoadingMore} onClick={gallery.loadMore} type="button">{gallery.isLoadingMore && <LoaderCircle className="memorySpinner" size={17} aria-hidden="true" />} {gallery.isLoadingMore ? 'Loading memories…' : 'More memories'}</button></div>}
       </div>
-      {selected && <PhotoLightbox photos={gallery.photos} selected={selected} onSelect={setSelected} onClose={closeLightbox} onUnavailable={handleUnavailable} returnFocusRef={refreshButton} />}
+      {selected && <PhotoLightbox photos={gallery.photos} selected={selected} onSelect={setSelected} onClose={closeLightbox} onUnavailable={handleUnavailable} returnFocusRef={galleryHeading} />}
     </section>
   );
 }

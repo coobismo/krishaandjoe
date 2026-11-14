@@ -42,7 +42,7 @@ export function useGuestGallery({ endpoint, uploadCode, enabled, refreshKey, aut
   useEffect(() => {
     if (lastRefreshKey.current === refreshKey) return;
     lastRefreshKey.current = refreshKey;
-    controller.current?.refresh();
+    controller.current?.refresh({ preservePhotos: true });
   }, [refreshKey]);
 
   const refresh = useCallback(() => controller.current?.refresh(), []);

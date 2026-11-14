@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { getUploadLimits, MAX_FILES, uploadPhoto, validatePhoto } from './uploadPhoto.mjs';
+import { uploadWithCompletion } from './uploadWithCompletion.mjs';
 
 const fileKey = (file) => `${file.name}:${file.size}:${file.lastModified}`;
 
-export function usePhotoUploads(endpoint, provider = 'apps-script', uploadCode = '', onUploadsComplete) {
+export function usePhotoUploads(endpoint, provider = 'apps-script', uploadCode = '', onUploadComplete) {
   const limits = getUploadLimits(provider);
   const [files, setFiles] = useState([]);
   const [guestName, setGuestName] = useState('');
@@ -88,7 +89,6 @@ export function usePhotoUploads(endpoint, provider = 'apps-script', uploadCode =
     let uploadedCount = 0;
     const updateFile = (uploadId, update) => {
       if (!isMounted.current) return;
-      if (uploadedCount > 0 && typeof onUploadsComplete === 'function') onUploadsComplete();
       setFiles((current) => current.map((entry) => (
         entry.uploadId === uploadId ? { ...entry, ...update } : entry
       )));
@@ -102,13 +102,18 @@ export function usePhotoUploads(endpoint, provider = 'apps-script', uploadCode =
         const entryGuestName = entry.guestName ?? guestName.trim();
         updateFile(entry.uploadId, { status: 'uploading', error: '', guestName: entryGuestName });
         try {
-          await uploadPhoto(endpoint, { ...entry, guestName: entryGuestName }, {
+          await uploadWithCompletion(() => uploadPhoto(endpoint, { ...entry, guestName: entryGuestName }, {
             provider,
             uploadCode,
             onProgress: ({ uploadedBytes, phase }) => updateFile(entry.uploadId, { uploadedBytes, phase }),
+          }), {
+            isActive: () => isMounted.current,
+            onSaved: () => {
+              updateFile(entry.uploadId, { status: 'success', uploadedBytes: entry.file.size });
+              uploadedCount += 1;
+            },
+            onComplete: onUploadComplete,
           });
-          updateFile(entry.uploadId, { status: 'success', uploadedBytes: entry.file.size });
-          uploadedCount += 1;
         } catch (error) {
           updateFile(entry.uploadId, {
             status: 'error',

@@ -34,12 +34,12 @@ function fileStatus(entry, provider) {
   return 'Uploading…';
 }
 
-export function PhotoUpload({ onUploadsComplete }) {
+export function PhotoUpload({ onUploadComplete }) {
   const endpoint = PHOTO_UPLOAD.endpoint;
   const { provider, uploadCode } = PHOTO_UPLOAD;
   const limits = getUploadLimits(provider);
   const isConfigured = isUploadEndpoint(endpoint, provider) && (provider !== 'cloud-run' || Boolean(uploadCode));
-  const uploads = usePhotoUploads(isConfigured ? endpoint : '', provider, uploadCode, onUploadsComplete);
+  const uploads = usePhotoUploads(isConfigured ? endpoint : '', provider, uploadCode, onUploadComplete);
   const inputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const pendingCount = uploads.files.filter((entry) => entry.status !== 'success').length;

@@ -101,6 +101,37 @@ test('automatic checks defer to pagination without aborting it or resetting olde
   assert.equal(state().nextCursor, 'oldest');
 });
 
+test('upload completion immediately adds new photos without clearing the loaded older pages', async (t) => {
+  const { controller, calls, state, complete } = setup(t);
+  await complete('refresh', page([5, 4], 'older'));
+  await complete('loadMore', page([3, 2], 'oldest'));
+  const uploaded = controller.refresh({ preservePhotos: true });
+  assert.equal(calls.length, 3, 'The upload triggers a request without waiting for the polling timer');
+  assert.equal(state().isLoading, false);
+  assert.deepEqual(state().photos.map((item) => item.id), ids([5, 4, 3, 2]));
+  calls[2].resolve(page([6, 5], 'updated-head'));
+  await uploaded;
+  assert.deepEqual(state().photos.map((item) => item.id), ids([6, 5, 4, 3, 2]));
+  assert.equal(state().nextCursor, 'oldest');
+});
+
+test('uploads completed during pagination queue a single update and leave the active request running', async (t) => {
+  const { controller, calls, state, complete } = setup(t);
+  await complete('refresh', page([5, 4], 'older'));
+  const more = controller.loadMore();
+  controller.refresh({ preservePhotos: true });
+  controller.refresh({ preservePhotos: true });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[1].signal.aborted, false);
+  calls[1].resolve(page([3, 2], 'oldest'));
+  await more;
+  assert.equal(calls.length, 3);
+  calls[2].resolve(page([7, 6, 5], 'updated-head'));
+  await flush();
+  assert.deepEqual(state().photos.map((item) => item.id), ids([7, 6, 5, 4, 3, 2]));
+  assert.equal(state().nextCursor, 'oldest');
+});
+
 test('automatic recovery after an initial failure initializes pagination and permits older memories', async (t) => {
   const { controller, clock, calls, state, complete } = setup(t);
   const initial = controller.refresh();

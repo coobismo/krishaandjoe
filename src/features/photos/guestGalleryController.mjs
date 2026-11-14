@@ -122,11 +122,12 @@ export function createGuestGalleryController({
   }
   return {
     getSnapshot: () => state,
-    refresh() {
+    refresh({ preservePhotos = false } = {}) {
       if (disposed) return;
-      cancelActive();
       authBlocked = false;
       failures = 0;
+      if (preservePhotos) return check();
+      cancelActive();
       pendingCheck = false;
       return run('refresh');
     },
