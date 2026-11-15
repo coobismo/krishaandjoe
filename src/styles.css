@@ -312,14 +312,12 @@ main {
 .guestGallery :is(button, a):focus-visible, .guestLightbox button:focus-visible { outline: 2px solid var(--blue); outline-offset: 4px; }
 .guestPhotoGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(14px, 2.5vw, 26px); }
 .guestPhotoCard { margin: 0; min-width: 0; text-align: left; }
-.guestPhotoCard > button { position: relative; display: block; width: 100%; overflow: hidden; padding: 0; border: 1px solid var(--line); border-radius: 16px; background: var(--ivory); cursor: pointer; }
+.guestPhotoCard > button { position: relative; display: block; width: 100%; overflow: hidden; padding: 0; border: 1px solid var(--line); border-radius: 16px; background: var(--ivory); cursor: zoom-in; }
 .guestPhotoImage-thumbnail { aspect-ratio: 4 / 5; }
 .guestPhotoImage { display: grid; place-items: center; overflow: hidden; width: 100%; background: var(--ivory-deep); color: var(--blue); }
 .guestPhotoImage img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .guestPhotoCard img { transition: transform 220ms ease; }
 .guestPhotoCard > button:hover img { transform: scale(1.035); }
-.guestPhotoOpen { position: absolute; bottom: 15px; right: 15px; left: 15px; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 10px 12px; border-radius: 999px; background: rgba(255, 253, 248, 0.94); color: var(--blue); font-size: 0.76rem; opacity: 0; transition: opacity 180ms ease; }
-.guestPhotoCard > button:is(:hover, :focus-visible) .guestPhotoOpen { opacity: 1; }
 .guestPhotoCard figcaption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 3px 10px; margin-top: 11px; color: var(--muted); font-size: 0.7rem; }
 .guestPhotoCard .guestPhotoAttribution { display: -webkit-box; flex: 1 1 0; min-width: 0; overflow: hidden; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .guestPhotoCard figcaption time { flex-shrink: 0; white-space: nowrap; }
@@ -348,10 +346,8 @@ main {
 .guestPhotoImage-preview img { width: 100%; height: 100%; object-fit: contain; }
 @media (max-width: 620px) {
   .guestPhotoGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 12px; }
-  .guestPhotoOpen { font-size: 0.66rem; left: 8px; right: 8px; bottom: 8px; padding: 8px; }
   .guestLightboxHeader, .guestLightboxFooter { padding: 10px 12px; }
 }
-@media (hover: none) { .guestPhotoOpen { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .guestPhotoCard img { transition: none; } }
 
 .memories {

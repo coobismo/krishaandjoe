@@ -96,9 +96,8 @@ export function GuestGallery({ refreshKey = 0, onAddMemory }) {
         {gallery.photos.length > 0 && <div className="guestPhotoGrid">
           {gallery.photos.map((photo, index) => (
             <figure className="guestPhotoCard" key={photo.id}>
-              <button aria-label={`Open guest photo ${index + 1}, shared on ${sharedDate(photo.createdAt)}`} type="button" onClick={() => setSelected(photo)}>
+              <button aria-label={`Open guest photo ${index + 1}, shared on ${sharedDate(photo.createdAt)}`} aria-haspopup="dialog" type="button" onClick={() => setSelected(photo)}>
                 <GuestPhotoImage endpoint={endpoint} uploadCode={uploadCode} photo={photo} onUnavailable={handleUnavailable} />
-                <span className="guestPhotoOpen">View memory <ArrowRight size={15} aria-hidden="true" /></span>
               </button>
               <figcaption><span className="guestPhotoAttribution">{sharedBy(photo)}</span><time dateTime={photo.createdAt}>{sharedDate(photo.createdAt)}</time></figcaption>
             </figure>

@@ -112,7 +112,6 @@ export function PhotoUpload({ onUploadComplete, compact = false, onUploadingChan
           <button className="button secondary memoryChoose" disabled={!canSelect} onClick={() => inputRef.current?.click()} type="button">
             <Image size={17} aria-hidden="true" /> Choose photos & videos
           </button>
-          <p className="memoryLimits" id="memory-file-limits">Up to {limits.maxFiles} files at a time · {formatFileSize(limits.maxFileBytes).replace('.0', '')} per file · iPhone photos welcome</p>
         </div>
 
         {!isConfigured && <p className="memoryNotice">Photo sharing is opening soon. Please check back to share your memories with us.</p>}
@@ -161,7 +160,7 @@ export function PhotoUpload({ onUploadComplete, compact = false, onUploadingChan
         )}
 
         <p className="memoryFeedback" role="status" aria-atomic="true">{uploads.notice}</p>
-        <p className="memoryFootnote">For Krisha & Joe’s keepsake album. No Google sign-in needed.</p>
+        <p className="memoryFootnote">For Krisha & Joe’s keepsake album.</p>
       </form>
     </section>
   );
