@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, truncateSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import {
-  createFetchObserver, createLoadTestPhoto, parseLoadTestArgs, planLoadTest, runUploadLoadTest,
+  createFetchObserver, createLoadTestPhoto, parseLoadTestArgs, planLoadTest, readLoadTestPhoto, runUploadLoadTest,
 } from '../scripts/load-test-helpers.mjs';
 
 const endpoint = 'https://uploader-test.run.app';
@@ -17,6 +17,7 @@ const uuidSequence = () => {
   return () => `00000000-0000-4000-8000-${(++sequence).toString(16).padStart(12, '0')}`;
 };
 const inertTimer = { setIntervalFn: () => 1, clearIntervalFn: () => {} };
+const jpegBytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 4, 0, 0, 0xff, 0xd9]);
 
 test('strict argument parsing rejects unknown, missing, duplicate and out-of-range values', () => {
   assert.deepEqual(parseLoadTestArgs(['--endpoint', endpoint]), {
@@ -24,6 +25,9 @@ test('strict argument parsing rejects unknown, missing, duplicate and out-of-ran
   });
   assert.deepEqual(parseLoadTestArgs(['--endpoint', endpoint, '--clients', '100', '--megabytes', '32', '--files-per-client', '20', '--dry-run']), {
     endpoint, clients: 100, megabytes: 32, filesPerClient: 20, dryRun: true,
+  });
+  assert.deepEqual(parseLoadTestArgs(['--endpoint', endpoint, '--file', '/local/private photo.JPG', '--clients', '50']), {
+    endpoint, clients: 50, filePath: '/local/private photo.JPG', filesPerClient: 1, dryRun: false,
   });
   const bad = [
     [], ['--endpoint'], ['--endpoint', endpoint, '--clients'],
@@ -33,12 +37,65 @@ test('strict argument parsing rejects unknown, missing, duplicate and out-of-ran
     ['--endpoint', 'http://remote.example'], ['--endpoint', 'https://user:PRIVATE@uploader-test.run.app'],
     ...['0', '-1', '101', '1.5', '01', '1e2'].map((value) => ['--endpoint', endpoint, '--clients', value]),
     ['--endpoint', endpoint, '--megabytes', '33'], ['--endpoint', endpoint, '--files-per-client', '21'],
+    ['--endpoint', endpoint, '--file'], ['--endpoint', endpoint, '--file', 'one.jpg', '--file', 'two.jpg'],
+    ['--endpoint', endpoint, '--file', 'photo.jpg', '--megabytes', '8'],
   ];
   for (const args of bad) assert.throws(() => parseLoadTestArgs(args), (error) => {
     assert.match(error.message, /^Usage:/);
     assert.ok(!error.message.includes('PRIVATE'));
     return true;
   });
+});
+
+test('local JPEG bytes and MIME are preserved and planning uses their exact size', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'wedding-load-test-jpeg-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const path = join(directory, 'private photo.JPEG');
+  writeFileSync(path, jpegBytes);
+  const source = await readLoadTestPhoto(path);
+  assert.equal(source.fileBytes, jpegBytes.length);
+  assert.equal(source.photo.type, 'image/jpeg');
+  assert.deepEqual(Buffer.from(await source.photo.arrayBuffer()), jpegBytes);
+  assert.deepEqual(readFileSync(path), jpegBytes, 'Reading the source must leave it unchanged');
+  assert.deepEqual(await readLoadTestPhoto(path, { dryRun: true }), { fileBytes: jpegBytes.length });
+  const plan = planLoadTest({ clients: 100, filesPerClient: 3, fileBytes: source.fileBytes });
+  assert.equal(plan.totalFiles, 300);
+  assert.equal(plan.totalBytes, 300 * jpegBytes.length);
+
+  const seen = [];
+  const result = await runUploadLoadTest({
+    endpoint, clients: 2, filesPerClient: 2, photo: source.photo, uploadCode, uuid: uuidSequence(), ...inertTimer,
+    async upload(_url, { file, uploadId }) {
+      assert.equal(file.type, 'image/jpeg');
+      assert.equal(file.name, `load-test-${uploadId}.jpg`);
+      assert.deepEqual(Buffer.from(await file.arrayBuffer()), jpegBytes);
+      seen.push(file.name);
+      return { ok: true, uploadId };
+    },
+  });
+  assert.equal(result.confirmedFiles, 4);
+  assert.equal(new Set(seen).size, 4);
+  assert.equal(result.totalBytes, 4 * jpegBytes.length);
+});
+
+test('local JPEG validation rejects inaccessible, empty, oversized, non-file and misleading inputs privately', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'wedding-load-test-jpeg-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const files = {
+    'empty.jpg': Buffer.alloc(0), 'not-jpeg.jpg': Buffer.from('private non-JPEG contents'),
+    'photo.png': jpegBytes, 'too-large.jpg': jpegBytes,
+  };
+  for (const [name, contents] of Object.entries(files)) writeFileSync(join(directory, name), contents);
+  truncateSync(join(directory, 'too-large.jpg'), 32 * 1024 * 1024 + 1);
+  mkdirSync(join(directory, 'directory.jpg'));
+  for (const name of [...Object.keys(files), 'directory.jpg', 'PRIVATE_MISSING.jpg']) {
+    for (const dryRun of [false, true]) {
+      await assert.rejects(readLoadTestPhoto(join(directory, name), { dryRun }), (error) => {
+        assert.doesNotMatch(error.message, /PRIVATE|wedding-load-test-jpeg-|ENOENT|private non-JPEG/);
+        return true;
+      });
+    }
+  }
 });
 
 test('planning computes bounded volumes without allocation and the generated photo is a valid aligned BMP', async () => {
@@ -201,15 +258,17 @@ test('fetch observations contain only copied status counts and network-failure t
   assert.doesNotMatch(JSON.stringify(observer.getSnapshot()), /PRIVATE_|https:|headers|privateBody/);
 });
 
-function cli(t, args) {
+function cli(t, args, files = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'wedding-load-test-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
+  for (const [name, contents] of Object.entries(files)) writeFileSync(join(directory, name), contents);
   const guard = 'data:text/javascript,' + encodeURIComponent('globalThis.fetch = async () => { console.error("UNEXPECTED_NETWORK_CALL"); throw new Error("Network is forbidden in this test"); };');
   const result = spawnSync(process.execPath, ['--import', guard, fileURLToPath(new URL('../scripts/load-test.mjs', import.meta.url)), ...args], {
     cwd: directory, encoding: 'utf8', timeout: 5000,
   });
   assert.equal(result.error, undefined);
-  assert.deepEqual(readdirSync(directory), []);
+  assert.deepEqual(readdirSync(directory).sort(), Object.keys(files).sort());
+  for (const [name, contents] of Object.entries(files)) assert.deepEqual(readFileSync(join(directory, name)), contents);
   assert.ok(!`${result.stdout}${result.stderr}`.includes('UNEXPECTED_NETWORK_CALL'));
   return result;
 }
@@ -227,5 +286,26 @@ test('CLI invalid flags fail before any password prompt or test plan', (t) => {
   const result = cli(t, ['--endpoint', endpoint, '--clients100']);
   assert.equal(result.status, 1);
   assert.match(result.stderr, /^Usage:/);
+  assert.equal(result.stdout, '');
+});
+
+test('CLI JPEG dry run uses exact source bytes without prompting, networking, copying or printing its private name', (t) => {
+  const result = cli(t, ['--endpoint', endpoint, '--clients', '100', '--file', 'PRIVATE photo.JPG', '--files-per-client', '3', '--dry-run'], {
+    'PRIVATE photo.JPG': jpegBytes,
+  });
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /300 JPEG test copies/);
+  assert.match(result.stdout, new RegExp(`${jpegBytes.length} bytes per file`));
+  assert.match(result.stdout, /Redeploy the backend/);
+  assert.match(result.stdout, /Dry run complete/);
+  assert.doesNotMatch(result.stdout, /Guest upload password:|PRIVATE/);
+  assert.equal(result.stderr, '');
+});
+
+test('CLI rejects a bad JPEG before printing a plan or asking for the password', (t) => {
+  const result = cli(t, ['--endpoint', endpoint, '--file', 'PRIVATE.jpg'], { 'PRIVATE.jpg': Buffer.from('not a JPEG') });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /does not have a JPEG header/);
+  assert.doesNotMatch(result.stderr, /PRIVATE|ENOENT/);
   assert.equal(result.stdout, '');
 });

@@ -44,10 +44,22 @@ test('legacy complete images accept Firestore timestamps and the original creati
 });
 
 test('synthetic connection and load-test images do not appear in the guest album', () => {
-  for (const name of ['uploader-connection-check.png', `load-test-${id}.bmp`]) {
+  for (const name of [
+    'uploader-connection-check.png', `load-test-${id}.bmp`, `load-test-${id}.jpg`,
+    `load-test-${id}.jpeg`, `LOAD-TEST-${id.toUpperCase()}.JPG`, `load-test-${id}.JPEG`,
+  ]) {
     assert.equal(photoForCompletedUpload({ ...uploaded(), name }), null);
   }
-  assert.ok(photoForCompletedUpload({ ...uploaded(), name: 'wedding-memory.jpg' }));
+});
+
+test('ordinary photos and filenames outside the reserved load-test pattern remain in the album', () => {
+  for (const name of [
+    'wedding-memory.jpg', 'load-test-wedding.jpg', `guest-load-test-${id}.jpg`,
+    `load-test-${id}.jpg.backup`, `load-test-${id}.png`, `load-test-${id.slice(1)}.jpg`,
+    `load-test-${id}0.jpeg`,
+  ]) {
+    assert.ok(photoForCompletedUpload({ ...uploaded(), name }), name);
+  }
 });
 
 test('upload completion and its durable gallery entry are written in the same Firestore transaction', async () => {

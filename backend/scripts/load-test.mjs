@@ -1,7 +1,7 @@
 import { hiddenPrompts } from './cloud-helpers.mjs';
 import {
   createFetchObserver, createLoadTestPhoto, LoadTestError, parseLoadTestArgs,
-  planLoadTest, runUploadLoadTest,
+  planLoadTest, readLoadTestPhoto, runUploadLoadTest,
 } from './load-test-helpers.mjs';
 
 const mib = (bytes) => (bytes / 1024 / 1024).toFixed(1);
@@ -9,8 +9,10 @@ const seconds = (milliseconds) => milliseconds === null ? 'n/a' : `${(millisecon
 
 async function main() {
   const options = parseLoadTestArgs(process.argv.slice(2));
-  const plan = planLoadTest(options);
-  console.log(`Planned: ${plan.clients} guest ${plan.clients === 1 ? 'queue' : 'queues'} × ${plan.filesPerClient} ${plan.filesPerClient === 1 ? 'file' : 'files'} = ${plan.totalFiles} generated BMP files, ${mib(plan.totalBytes)} MiB total.`);
+  const source = options.filePath ? await readLoadTestPhoto(options.filePath, options) : null;
+  const plan = planLoadTest({ ...options, ...(source ? { fileBytes: source.fileBytes } : {}) });
+  console.log(`Planned: ${plan.clients} guest ${plan.clients === 1 ? 'queue' : 'queues'} × ${plan.filesPerClient} ${plan.filesPerClient === 1 ? 'file' : 'files'} = ${plan.totalFiles} ${source ? 'JPEG test copies' : 'generated BMP files'}, ${mib(plan.totalBytes)} MiB total (${plan.fileBytes} bytes per file).`);
+  if (source) console.log('JPEG tests require the updated backend gallery exclusion. Redeploy the backend before testing the live gallery.');
   console.log('A real run writes these files into the backend’s configured Drive folder. Use a dedicated test deployment and folder.');
   if (options.dryRun) {
     console.log('Dry run complete: no password prompt, network requests, or files created.');
@@ -31,7 +33,7 @@ async function main() {
   } finally { prompts?.close(); }
   if (!uploadCode) throw new LoadTestError('A guest upload password is required.');
 
-  const photo = createLoadTestPhoto(options.megabytes);
+  const photo = source?.photo ?? createLoadTestPhoto(options.megabytes);
   console.log('Starting uploader-protocol test. Browser UI, CORS and gallery traffic are not included.');
   const nativeFetch = globalThis.fetch;
   const observer = createFetchObserver(nativeFetch);
@@ -52,7 +54,7 @@ async function main() {
   console.log(`Guest queue p95 (all queues): ${seconds(result.guestQueueP95Ms)}.`);
   console.log(`Final file failures by category: ${JSON.stringify(result.failureCounts)}.`);
   console.log(`HTTP request observations: ${JSON.stringify(observer.getSnapshot())}.`);
-  console.log('Review Cloud Run, Drive quota and Firestore metrics; remove generated load-test-*.bmp files from the test folder when finished.');
+  console.log(`Review Cloud Run, Drive quota and Firestore metrics; remove generated load-test-*.${source ? 'jpg' : 'bmp'} files from the test folder when finished.`);
   if (result.failedFiles) process.exitCode = 1;
 }
 

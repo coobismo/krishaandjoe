@@ -1,15 +1,18 @@
 import { File } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
+import { open } from 'node:fs/promises';
+import { extname } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { isUploadEndpoint, uploadPhoto } from '../../src/features/photos/uploadPhoto.mjs';
 
 const MIB = 1024 * 1024;
-const USAGE = 'Usage: node backend/scripts/load-test.mjs --endpoint https://YOUR_SERVICE.run.app [--clients 10] [--megabytes 8] [--files-per-client 1] [--dry-run]';
+const MAX_TEST_PHOTO_BYTES = 32 * MIB;
+const USAGE = 'Usage: node backend/scripts/load-test.mjs --endpoint https://YOUR_SERVICE.run.app [--clients 10] [--megabytes 8 | --file /path/photo.jpg] [--files-per-client 1] [--dry-run]';
 export class LoadTestError extends Error {}
 
 export function parseLoadTestArgs(args) {
   const values = new Map();
-  const known = new Set(['--endpoint', '--clients', '--megabytes', '--files-per-client', '--dry-run']);
+  const known = new Set(['--endpoint', '--clients', '--megabytes', '--file', '--files-per-client', '--dry-run']);
   for (let index = 0; index < args.length; index += 1) {
     const key = args[index];
     if (!known.has(key) || values.has(key)) throw new LoadTestError(USAGE);
@@ -27,17 +30,56 @@ export function parseLoadTestArgs(args) {
   };
   const endpoint = values.get('--endpoint');
   if (!isUploadEndpoint(endpoint, 'cloud-run')) throw new LoadTestError(USAGE);
+  if (values.has('--file') && values.has('--megabytes')) throw new LoadTestError(USAGE);
   return {
-    endpoint, clients: integer('--clients', 10, 100), megabytes: integer('--megabytes', 8, 32),
+    endpoint, clients: integer('--clients', 10, 100),
+    ...(values.has('--file') ? { filePath: values.get('--file') } : { megabytes: integer('--megabytes', 8, 32) }),
     filesPerClient: integer('--files-per-client', 1, 20), dryRun: values.get('--dry-run') === true,
   };
 }
 
-export function planLoadTest({ clients, filesPerClient, megabytes }) {
+export function planLoadTest({ clients, filesPerClient, megabytes, fileBytes }) {
   const rowBytes = 1024 * 3;
-  const height = Math.max(1, Math.floor((megabytes * MIB - 54) / rowBytes));
-  const fileBytes = 54 + rowBytes * height;
+  if (fileBytes === undefined) {
+    const height = Math.max(1, Math.floor((megabytes * MIB - 54) / rowBytes));
+    fileBytes = 54 + rowBytes * height;
+  }
   return { clients, filesPerClient, fileBytes, totalFiles: clients * filesPerClient, totalBytes: clients * filesPerClient * fileBytes };
+}
+
+export async function readLoadTestPhoto(filePath, { dryRun = false } = {}) {
+  if (!['.jpg', '.jpeg'].includes(extname(filePath).toLowerCase())) {
+    throw new LoadTestError('Choose a local .jpg or .jpeg photo with --file.');
+  }
+  let handle;
+  try {
+    handle = await open(filePath, 'r');
+    const info = await handle.stat();
+    if (!info.isFile() || info.size < 3 || info.size > MAX_TEST_PHOTO_BYTES) {
+      throw new LoadTestError('The test photo must be a nonempty regular JPEG file no larger than 32 MiB.');
+    }
+    const header = Buffer.alloc(3);
+    const { bytesRead } = await handle.read(header, 0, header.length, 0);
+    const isJpeg = (bytes) => bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    if (bytesRead !== 3 || !isJpeg(header)) throw new LoadTestError('The selected file does not have a JPEG header. Choose a .jpg or .jpeg photo.');
+    if (dryRun) return { fileBytes: info.size };
+    // Read one bounded copy; every guest reuses its immutable Blob contents.
+    const bytes = Buffer.alloc(info.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const result = await handle.read(bytes, offset, bytes.length - offset, offset);
+      if (!result.bytesRead) break;
+      offset += result.bytesRead;
+    }
+    const finalInfo = await handle.stat();
+    if (offset !== bytes.length || finalInfo.size !== info.size || finalInfo.mtimeMs !== info.mtimeMs || !isJpeg(bytes)) {
+      throw new LoadTestError('The test photo changed while it was being read. Try again with an unchanged local copy.');
+    }
+    return { fileBytes: bytes.length, photo: new Blob([bytes], { type: 'image/jpeg' }) };
+  } catch (error) {
+    if (error instanceof LoadTestError) throw error;
+    throw new LoadTestError('Could not read the test photo. Check that --file points to an accessible local .jpg or .jpeg file.');
+  } finally { await handle?.close(); }
 }
 
 export function createLoadTestPhoto(megabytes) {
@@ -118,7 +160,8 @@ export async function runUploadLoadTest({
         activeFiles += 1;
         try {
           const uploadId = uuid();
-          const file = new File([photo], `load-test-${uploadId}.bmp`, { type: 'image/bmp' });
+          const extension = photo.type === 'image/jpeg' ? 'jpg' : 'bmp';
+          const file = new File([photo], `load-test-${uploadId}.${extension}`, { type: photo.type || 'image/bmp' });
           acknowledged.set(uploadId, 0);
           const receipt = await upload(endpoint, { uploadId, file, guestName: 'Upload capacity test' }, {
             provider: 'cloud-run', uploadCode,

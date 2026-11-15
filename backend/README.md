@@ -243,6 +243,34 @@ photos, or make network requests:
 node backend/scripts/load-test.mjs --endpoint https://YOUR_UPLOAD_SERVICE.run.app --clients 100 --megabytes 8 --dry-run
 ```
 
+To use a real JPEG instead, replace `--megabytes` with `--file`. Files ending
+in `.jpg` or `.jpeg` are supported up to 32 MiB. The options are mutually
+exclusive; omitting both keeps the default generated 8 MiB BMP.
+
+**Redeploy the updated backend before running JPEG tests against production.**
+The earlier backend excludes only BMP test filenames from the guest gallery;
+the updated backend also excludes JPG/JPEG test filenames. Follow
+[the backend deployment procedure](#4-deploy). For the existing wedding service:
+
+```bash
+node backend/scripts/deploy.mjs --project wedding-uploader-514213 --origin https://krishaandjoe.ph
+```
+
+Inspect a JPEG test plan, then run it after the backend update is deployed:
+
+```bash
+node backend/scripts/load-test.mjs --endpoint https://YOUR_UPLOAD_SERVICE.run.app --clients 10 --file "/path/to/photo.jpg" --dry-run
+node backend/scripts/load-test.mjs --endpoint https://YOUR_UPLOAD_SERVICE.run.app --clients 10 --file "/path/to/photo.jpg"
+```
+
+For a local file, `--dry-run` reads its metadata and JPEG header to validate it
+and calculate the total from its actual byte size. It does not read the full
+photo, prompt for a password, make network requests or upload files. A real run
+reads the photo once and reuses its original bytes for every simulated guest
+and every file in their queue. The local original remains unchanged. Each
+uploaded copy is named `load-test-UUID.jpg` with MIME type `image/jpeg`, even
+when the local file ends in `.jpeg`.
+
 Run each stage separately and inspect its result before increasing the load:
 
 ```bash
@@ -258,10 +286,12 @@ node backend/scripts/load-test.mjs --endpoint https://YOUR_UPLOAD_SERVICE.run.ap
 ```
 
 `--megabytes` uses MiB. One 100-guest run with one 8 MiB file each writes about
-800 MiB; three files each write about 2.34 GiB. Files are real, named exactly
-`load-test-UUID.bmp`, and go into the **endpoint's configured Drive folder**.
-They are deliberately excluded from the guest gallery. Remove those test files
-from Drive when finished. The helper does not automatically delete anything.
+800 MiB; three files each write about 2.34 GiB. Generated files are named
+`load-test-UUID.bmp`; local JPEG copies are named `load-test-UUID.jpg`. Both go
+into the **endpoint's configured Drive folder** and are deliberately excluded
+from the guest gallery by the updated backend. Remove the `load-test-*.bmp`
+and `load-test-*.jpg` files from Drive when finished. The helper does not
+automatically delete anything.
 
 For isolation, use a separately named Cloud Run service, Drive test folder and
 Firestore database via `FIRESTORE_DATABASE_ID`, or a separate test project.
@@ -278,8 +308,8 @@ the HTTP counts as well as the success total.
 
 This is an **upload protocol test**, not 100 browser sessions. While it runs,
 open `/memories` on several real phones and check gallery thumbnails, the photo
-viewer, upload progress and a normal photo's appearance after completion. The
-synthetic BMPs do not test gallery rendering, video uploads or HEIC previews.
+viewer, upload progress and a normal photo's appearance after completion. These
+test uploads do not test gallery rendering, video uploads or HEIC previews.
 A full gallery-load test needs real image fixtures and simultaneous viewer
 traffic; use at least one full gallery page of fixtures in an isolated setup.
 

@@ -15,7 +15,7 @@ export function photoForCompletedUpload(upload) {
       || typeof upload.fileId !== 'string' || !/^[A-Za-z0-9_-]{1,256}$/.test(upload.fileId)
       || !GALLERY_IMAGE_MIME_TYPES.has(upload.mimeType)
       || !Number.isSafeInteger(upload.size) || upload.size <= 0) return null;
-  if (upload.name === 'uploader-connection-check.png' || /^load-test-[0-9a-f-]{36}\.bmp$/i.test(upload.name || '')) return null;
+  if (upload.name === 'uploader-connection-check.png' || /^load-test-[0-9a-f-]{36}\.(?:bmp|jpe?g)$/i.test(upload.name || '')) return null;
   const createdAt = dateValue(upload.completedAt ?? upload.createdAt);
   if (!(createdAt instanceof Date) || !Number.isFinite(createdAt.getTime())) return null;
   const guestName = normalizeGuestName(upload.guestName);
