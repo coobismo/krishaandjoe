@@ -255,16 +255,18 @@ To use a real JPEG instead, replace `--megabytes` with `--file`. Files ending
 in `.jpg` or `.jpeg` are supported up to 32 MiB. The options are mutually
 exclusive; omitting both keeps the default generated 8 MiB BMP.
 
-**Redeploy the updated backend before running JPEG tests against production.**
-The earlier backend excludes only BMP test filenames from the guest gallery;
-the updated backend also excludes JPG/JPEG test filenames. Follow
+**Redeploy the updated backend to show new load-test photos in the gallery.**
+Earlier revisions excluded load-test filenames. The updated backend indexes
+completed BMP and JPEG test copies like other guest photos. Follow
 [the backend deployment procedure](#4-deploy). For the existing wedding service:
 
 ```bash
 node backend/scripts/deploy.mjs --project wedding-uploader-514213 --origin https://krishaandjoe.ph
 ```
 
-Inspect a JPEG test plan, then run it after the backend update is deployed:
+Inspect a JPEG test plan, then run it after the backend update is deployed.
+Run a new test to check gallery behavior; previously hidden test files are not
+guaranteed to be backfilled automatically:
 
 ```bash
 node backend/scripts/load-test.mjs --endpoint https://YOUR_UPLOAD_SERVICE.run.app --clients 10 --file "/path/to/photo.jpg" --dry-run
@@ -296,10 +298,11 @@ node backend/scripts/load-test.mjs --endpoint https://YOUR_UPLOAD_SERVICE.run.ap
 `--megabytes` uses MiB. One 100-guest run with one 8 MiB file each writes about
 800 MiB; three files each write about 2.34 GiB. Generated files are named
 `load-test-UUID.bmp`; local JPEG copies are named `load-test-UUID.jpg`. Both go
-into the **endpoint's configured Drive folder** and are deliberately excluded
-from the guest gallery by the updated backend. Remove the `load-test-*.bmp`
-and `load-test-*.jpg` files from Drive when finished. The helper does not
-automatically delete anything.
+into the **endpoint's configured Drive folder** and appear in its guest gallery
+after verified completion. Remove the `load-test-*.bmp` and `load-test-*.jpg`
+copies from that folder or move them to Drive Trash when finished. Reload the
+gallery to verify cleanup; its backend checks current Drive membership and
+trash state. The helper does not automatically delete anything.
 
 For isolation, use a separately named Cloud Run service, Drive test folder and
 Firestore database via `FIRESTORE_DATABASE_ID`, or a separate test project.
@@ -316,10 +319,12 @@ the HTTP counts as well as the success total.
 
 This is an **upload protocol test**, not 100 browser sessions. While it runs,
 open `/memories` on several real phones and check gallery thumbnails, the photo
-viewer, upload progress and a normal photo's appearance after completion. These
-test uploads do not test gallery rendering, video uploads or HEIC previews.
-A full gallery-load test needs real image fixtures and simultaneous viewer
-traffic; use at least one full gallery page of fixtures in an isolated setup.
+viewer, upload progress and the test photos' appearance after completion.
+Visible BMP and JPEG copies let you inspect gallery updates, paging and the
+viewer during upload traffic. The script itself creates no browser sessions or
+gallery readers and does not test video uploads or HEIC previews. A full
+gallery-load test needs simultaneous viewer traffic; use at least one full
+gallery page of photo fixtures in an isolated setup.
 
 One load-generator computer shares one internet uplink across all simulated
 guests. Sending 800 MiB takes at least about 67 seconds on a 100 Mbps upload
@@ -437,8 +442,9 @@ the existing guest code. Original file browsing remains unavailable.
 The gallery uses a separate durable Firestore collection, `weddingPhotoGallery`.
 Verified image uploads are indexed atomically with upload completion. Album
 entries have no upload-session TTL, so they remain after the temporary
-`weddingPhotoUploads` records expire. Videos and known synthetic connection/load
-test images are excluded.
+`weddingPhotoUploads` records expire. Videos and the uploader connection-check
+image are excluded. Completed load-test photos are indexed and displayed like
+other guest photos.
 
 The first gallery request imports already completed image-upload records that
 still exist in `weddingPhotoUploads`, up to 5,000 legacy records. Open the testing

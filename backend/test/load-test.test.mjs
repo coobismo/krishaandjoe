@@ -277,6 +277,7 @@ test('CLI dry run calculates a 100-guest queue plan without prompting, networkin
   const result = cli(t, ['--endpoint', endpoint, '--clients', '100', '--files-per-client', '3', '--megabytes', '8', '--dry-run']);
   assert.equal(result.status, 0);
   assert.match(result.stdout, /100 guest queues.*3 files.*300 generated BMP files/);
+  assert.match(result.stdout, /Load-test photos appear in the gallery/);
   assert.match(result.stdout, /Dry run complete/);
   assert.doesNotMatch(result.stdout, /Guest upload password:/);
   assert.equal(result.stderr, '');
@@ -297,6 +298,8 @@ test('CLI JPEG dry run uses exact source bytes without prompting, networking, co
   assert.match(result.stdout, /300 JPEG test copies/);
   assert.match(result.stdout, new RegExp(`${jpegBytes.length} bytes per file`));
   assert.match(result.stdout, /Redeploy the backend/);
+  assert.match(result.stdout, /Load-test photos appear in the gallery/);
+  assert.doesNotMatch(result.stdout, /gallery exclusion|excluded from the.*gallery/i);
   assert.match(result.stdout, /Dry run complete/);
   assert.doesNotMatch(result.stdout, /Guest upload password:|PRIVATE/);
   assert.equal(result.stderr, '');

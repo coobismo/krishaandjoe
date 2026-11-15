@@ -43,22 +43,22 @@ test('legacy complete images accept Firestore timestamps and the original creati
   assert.equal(photoForCompletedUpload(source).createdAt, createdAt);
 });
 
-test('synthetic connection and load-test images do not appear in the guest album', () => {
-  for (const name of [
-    'uploader-connection-check.png', `load-test-${id}.bmp`, `load-test-${id}.jpg`,
-    `load-test-${id}.jpeg`, `LOAD-TEST-${id.toUpperCase()}.JPG`, `load-test-${id}.JPEG`,
-  ]) {
-    assert.equal(photoForCompletedUpload({ ...uploaded(), name }), null);
-  }
+test('the connection-check image stays out of the guest album', () => {
+  assert.equal(photoForCompletedUpload({ ...uploaded(), name: 'uploader-connection-check.png' }), null);
 });
 
-test('ordinary photos and filenames outside the reserved load-test pattern remain in the album', () => {
-  for (const name of [
-    'wedding-memory.jpg', 'load-test-wedding.jpg', `guest-load-test-${id}.jpg`,
-    `load-test-${id}.jpg.backup`, `load-test-${id}.png`, `load-test-${id.slice(1)}.jpg`,
-    `load-test-${id}0.jpeg`,
+test('confirmed load-test photos appear with the same metadata and guest credit as ordinary photos', () => {
+  for (const [name, mimeType] of [
+    [`load-test-${id}.bmp`, 'image/bmp'], [`load-test-${id}.jpg`, 'image/jpeg'],
+    [`load-test-${id}.jpeg`, 'image/jpeg'], [`LOAD-TEST-${id.toUpperCase()}.JPG`, 'image/jpeg'],
+    ['wedding-memory.jpg', 'image/jpeg'],
   ]) {
-    assert.ok(photoForCompletedUpload({ ...uploaded(), name }), name);
+    const source = { ...uploaded(), name, mimeType, guestName: 'Upload capacity test' };
+    assert.deepEqual(photoForCompletedUpload(source), {
+      id, fileId: source.fileId, mimeType, size: source.size,
+      createdAt: source.completedAt, guestName: 'Upload capacity test',
+    });
+    assert.equal(photoForCompletedUpload({ ...source, status: 'uploading' }), null);
   }
 });
 

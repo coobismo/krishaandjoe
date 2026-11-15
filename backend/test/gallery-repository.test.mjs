@@ -201,11 +201,13 @@ test('legacy completed uploads seed durable image-only records and prefer comple
     upload(6, { size: 0 }), upload(7, { size: 500 * 1024 * 1024 + 1 }),
     upload(8, { mimeType: 'image/svg+xml' }), upload(9, { createdAt: new Date(NaN) }),
     upload(10, { name: 'uploader-connection-check.png' }),
-    upload(11, { name: `load-test-${uuid(11)}.bmp` }),
+    upload(11, { name: `load-test-${uuid(11)}.bmp`, mimeType: 'image/bmp' }),
+    upload(12, { name: `load-test-${uuid(12)}.jpg` }),
+    upload(13, { name: `load-test-${uuid(13)}.jpeg` }),
   ] });
   const repository = createGalleryRepository(firestore);
   const { photos } = await repository.list();
-  assert.deepEqual(photos.map(({ id }) => id), [uuid(1), uuid(2)]);
+  assert.deepEqual(photos.map(({ id }) => id), [uuid(1), uuid(13), uuid(12), uuid(11), uuid(2)]);
   assert.equal(photos[0].createdAt.getTime(), completion.getTime());
   assert.equal(photos[1].createdAt.getTime(), instant.getTime());
   for (const write of firestore.writes) {
@@ -214,7 +216,7 @@ test('legacy completed uploads seed durable image-only records and prefer comple
     assert.equal(write.data.guestName, 'A guest');
     assert.ok(write.data.createdAt instanceof Date);
   }
-  assert.equal(firestore.collections.weddingPhotoUploads.size, 11);
+  assert.equal(firestore.collections.weddingPhotoUploads.size, 13);
   const seedQuery = firestore.queries.find(({ collection }) => collection === 'weddingPhotoUploads');
   assert.deepEqual(seedQuery.filters, [{ field: 'status', operator: '==', value: 'complete' }]);
   assert.deepEqual(seedQuery.fields, ['uploadId', 'fileId', 'mimeType', 'size', 'createdAt', 'completedAt', 'status', 'name', 'guestName']);

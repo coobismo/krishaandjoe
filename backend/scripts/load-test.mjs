@@ -12,7 +12,7 @@ async function main() {
   const source = options.filePath ? await readLoadTestPhoto(options.filePath, options) : null;
   const plan = planLoadTest({ ...options, ...(source ? { fileBytes: source.fileBytes } : {}) });
   console.log(`Planned: ${plan.clients} guest ${plan.clients === 1 ? 'queue' : 'queues'} × ${plan.filesPerClient} ${plan.filesPerClient === 1 ? 'file' : 'files'} = ${plan.totalFiles} ${source ? 'JPEG test copies' : 'generated BMP files'}, ${mib(plan.totalBytes)} MiB total (${plan.fileBytes} bytes per file).`);
-  if (source) console.log('JPEG tests require the updated backend gallery exclusion. Redeploy the backend before testing the live gallery.');
+  console.log('Load-test photos appear in the gallery with the updated backend. Redeploy the backend before testing gallery behavior.');
   console.log('A real run writes these files into the backend’s configured Drive folder. Use a dedicated test deployment and folder.');
   if (options.dryRun) {
     console.log('Dry run complete: no password prompt, network requests, or files created.');
