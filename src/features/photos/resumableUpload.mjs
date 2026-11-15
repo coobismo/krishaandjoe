@@ -1,3 +1,5 @@
+import { xhrUploadRequest } from './xhrUploadRequest.mjs';
+
 const CHUNK_ALIGNMENT = 256 * 1024;
 const MAX_CHUNK_BYTES = 4 * 1024 * 1024;
 const UNCONFIRMED = 'We could not confirm this upload. Please try again; retrying the same file here will not create a duplicate.';
@@ -28,7 +30,7 @@ function retryAfter(response) {
 }
 
 // Each request has its own deadline; a large upload can take as long as needed.
-async function request(url, options, timeoutMs) {
+async function request(url, options, timeoutMs, onUploadProgress) {
   const controller = new AbortController();
   let timer;
   const deadline = new Promise((_, reject) => {
@@ -38,9 +40,11 @@ async function request(url, options, timeoutMs) {
     }, timeoutMs);
   });
   const send = async () => {
-    const response = await fetch(url, {
-      ...options, mode: 'cors', redirect: 'error', credentials: 'omit', signal: controller.signal,
-    });
+    const response = options.method === 'PUT' && typeof globalThis.XMLHttpRequest === 'function' && onUploadProgress
+      ? await xhrUploadRequest(url, { ...options, signal: controller.signal, onUploadProgress })
+      : await fetch(url, {
+        ...options, mode: 'cors', redirect: 'error', credentials: 'omit', signal: controller.signal,
+      });
     const retryAfterMs = retryAfter(response);
     let receipt;
     try {
@@ -100,38 +104,41 @@ export async function uploadResumablePhoto(endpoint, { file, uploadId, guestName
     const delay = Math.max(error?.retryAfterMs || 0, backoff);
     if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
   };
-  const withRetry = async (operation) => {
+  const withRetry = async (operation, onRetry = () => {}) => {
     for (let attempt = 0; ; attempt += 1) {
       try {
         return await operation();
       } catch (error) {
         if (!(error instanceof RequestError) || !error.retryable || attempt >= maxRetries) throw error;
+        onRetry();
         await waitBeforeRetry(attempt, error);
       }
     }
   };
-  const progress = (receipt, phase = receipt.status === 'complete' ? 'confirming' : 'uploading') => {
+  const progress = (receipt, phase = receipt.status === 'complete' || receipt.uploadedBytes === file.size ? 'confirming' : 'uploading', sentBytes = receipt.uploadedBytes) => {
     if (typeof onProgress !== 'function') return;
     try {
-      onProgress({ uploadedBytes: receipt.uploadedBytes, totalBytes: file.size, phase });
+      onProgress({ uploadedBytes: receipt.uploadedBytes, sentBytes, totalBytes: file.size, phase });
     } catch {
       // A UI callback must never turn a confirmed upload into a retried request.
     }
   };
 
   const uploadUrl = `${endpoint}/v1/uploads`;
+  const initialProgress = { status: 'uploading', uploadedBytes: 0 };
+  progress(initialProgress, 'preparing');
   let receipt = await withRetry(async () => validateReceipt(await request(uploadUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Upload-Code': uploadCode },
     body: JSON.stringify({ uploadId, name: file.name, mimeType, size: file.size, guestName }),
-  }, timeoutMs), uploadId, file.size, true));
+  }, timeoutMs), uploadId, file.size, true), () => progress(initialProgress, 'retrying'));
   // The capability token exists only for this call. Manual retries reinitialize
   // the same upload ID to recover the durable server session and current offset.
   const token = receipt.token;
   const fileUrl = `${uploadUrl}/${encodeURIComponent(uploadId)}`;
   const probe = () => withRetry(async () => validateReceipt(await request(fileUrl, {
     method: 'GET', headers: { 'X-Upload-Token': token },
-  }, timeoutMs), uploadId, file.size));
+  }, timeoutMs), uploadId, file.size), () => progress(receipt, 'retrying'));
   progress(receipt);
   let stalledAttempts = 0;
   let sessionResets = 0;
@@ -149,6 +156,7 @@ export async function uploadResumablePhoto(endpoint, { file, uploadId, guestName
 
     const start = receipt.uploadedBytes;
     const endExclusive = Math.min(start + receipt.chunkBytes, file.size);
+    let sentBytes = start;
     try {
       const acknowledged = validateReceipt(await request(fileUrl, {
         method: 'PUT',
@@ -158,7 +166,11 @@ export async function uploadResumablePhoto(endpoint, { file, uploadId, guestName
           'Content-Range': `bytes ${start}-${endExclusive - 1}/${file.size}`,
         },
         body: file.slice(start, endExclusive),
-      }, timeoutMs), uploadId, file.size);
+      }, timeoutMs, (loadedBytes) => {
+        if (!Number.isSafeInteger(loadedBytes) || loadedBytes < 0) return;
+        sentBytes = Math.max(sentBytes, Math.min(endExclusive, start + loadedBytes));
+        progress(receipt, sentBytes === endExclusive ? 'saving' : 'uploading', sentBytes);
+      }), uploadId, file.size);
       if (acknowledged.uploadedBytes <= start || acknowledged.uploadedBytes > endExclusive) throw new RequestError();
       receipt = acknowledged;
       stalledAttempts = 0;
@@ -166,7 +178,7 @@ export async function uploadResumablePhoto(endpoint, { file, uploadId, guestName
     } catch (error) {
       // A failed response does not mean Drive rejected the bytes. Always probe
       // before any resend, including when the final chunk's receipt was lost.
-      progress(receipt, endExclusive === file.size ? 'confirming' : 'uploading');
+      progress(receipt, 'retrying');
       const recovered = await probe();
       progress(recovered);
       if (recovered.status === 'complete') return { ok: true, uploadId };

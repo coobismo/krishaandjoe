@@ -53,7 +53,7 @@ export function usePhotoUploads(endpoint, provider = 'apps-script', uploadCode =
         errors.push(`Choose up to ${MAX_FILES} files at a time. Upload or remove some files before adding more.`);
         break;
       }
-      nextFiles.push({ file, uploadId: crypto.randomUUID(), status: 'ready', error: '', uploadedBytes: 0 });
+      nextFiles.push({ file, uploadId: crypto.randomUUID(), status: 'ready', error: '', uploadedBytes: 0, sentBytes: 0 });
     }
 
     setFiles(nextFiles);
@@ -100,16 +100,21 @@ export function usePhotoUploads(endpoint, provider = 'apps-script', uploadCode =
         // Metadata stays fixed for a resumable upload even if the guest edits
         // their name before retrying a previously started file.
         const entryGuestName = entry.guestName ?? guestName.trim();
-        updateFile(entry.uploadId, { status: 'uploading', error: '', guestName: entryGuestName });
+        updateFile(entry.uploadId, {
+          status: 'uploading', error: '', guestName: entryGuestName,
+          phase: 'preparing', sentBytes: entry.uploadedBytes || 0,
+        });
         try {
           await uploadWithCompletion(() => uploadPhoto(endpoint, { ...entry, guestName: entryGuestName }, {
             provider,
             uploadCode,
-            onProgress: ({ uploadedBytes, phase }) => updateFile(entry.uploadId, { uploadedBytes, phase }),
+            onProgress: ({ uploadedBytes, sentBytes = uploadedBytes, phase }) => updateFile(entry.uploadId, { uploadedBytes, sentBytes, phase }),
           }), {
             isActive: () => isMounted.current,
             onSaved: () => {
-              updateFile(entry.uploadId, { status: 'success', uploadedBytes: entry.file.size });
+              updateFile(entry.uploadId, {
+                status: 'success', uploadedBytes: entry.file.size, sentBytes: entry.file.size, phase: 'complete',
+              });
               uploadedCount += 1;
             },
             onComplete: onUploadComplete,

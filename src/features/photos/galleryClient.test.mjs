@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { fetchGalleryImage, getGallery, MAX_GALLERY_IMAGE_BYTES } from './galleryClient.mjs';
+import { fetchGalleryImage, getGallery, getGalleryPlayback, MAX_GALLERY_IMAGE_BYTES } from './galleryClient.mjs';
+import { GALLERY_VIDEO_MIME_TYPES, isGalleryVideo } from './galleryMedia.mjs';
 
 const endpoint = 'https://wedding-uploader.example/api';
 const photoId = 'df3846c3-eb9e-42e2-86af-d05c737a1a2a';
@@ -8,6 +9,10 @@ const uploadCode = 'PRIVATE_GUEST_CODE';
 const photo = { id: photoId, createdAt: '2026-11-21T06:00:00.000Z', mimeType: 'image/heic' };
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status });
 const page = () => json({ ok: true, photos: [photo], nextCursor: null });
+const playback = () => ({
+  ok: true, token: 'eyJpZCI6InB1YmxpYy11cGxvYWQtaWQifQ.' + 'A'.repeat(43),
+  expiresAt: '2026-11-21T06:30:00.000Z', mimeType: 'video/mp4',
+});
 
 test('gallery requests encode the cursor, authenticate with a header, and return only public photo metadata', async (t) => {
   let request;
@@ -42,6 +47,71 @@ test('malformed gallery pages are rejected before reaching the UI', async (t) =>
   t.mock.method(globalThis, 'fetch', async () => json(invalid.shift()));
   for (let index = 0; index < 8; index += 1) {
     await assert.rejects(getGallery(endpoint, { uploadCode }), { name: 'GalleryError', code: 'invalid-response' });
+  }
+});
+
+test('supported guest videos share gallery paging and credits without exposing private source metadata', async (t) => {
+  const videos = [...GALLERY_VIDEO_MIME_TYPES].map((mimeType, index) => ({
+    id: `00000000-0000-4000-8000-${(index + 1).toString(16).padStart(12, '0')}`,
+    createdAt: photo.createdAt, mimeType, guestName: 'A guest',
+  }));
+  t.mock.method(globalThis, 'fetch', async () => json({
+    ok: true, photos: [photo, ...videos.map((video) => ({ ...video, fileId: 'PRIVATE_FILE', videoUrl: 'https://drive.google.com/PRIVATE' }))], nextCursor: 'more',
+  }));
+  const result = await getGallery(endpoint, { uploadCode });
+  assert.deepEqual(result, { photos: [photo, ...videos], nextCursor: 'more' });
+  assert.equal(isGalleryVideo(result.photos[0]), false);
+  assert.ok(result.photos.slice(1).every(isGalleryVideo));
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE|drive\.google/);
+});
+
+test('playback authorization uses the guest header and constructs only the configured private video URL', async (t) => {
+  const calls = [];
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    calls.push({ url, ...options });
+    return json({ ...playback(), fileId: 'PRIVATE_FILE', url: 'https://evil.example/PRIVATE', oauthToken: 'PRIVATE_OAUTH' });
+  });
+  const result = await getGalleryPlayback(`${endpoint}/`, photoId, { uploadCode });
+  assert.deepEqual(result, {
+    url: `${endpoint}/v1/gallery/${photoId}/video?${new URLSearchParams({ token: playback().token })}`,
+    expiresAt: playback().expiresAt, mimeType: 'video/mp4',
+  });
+  assert.equal(calls.length, 1, 'Authorization must not download the video into browser memory');
+  assert.equal(calls[0].url, `${endpoint}/v1/gallery/${photoId}/playback`);
+  assert.equal(calls[0].headers['X-Upload-Code'], uploadCode);
+  assert.equal(calls[0].redirect, 'error');
+  assert.equal(calls[0].credentials, 'omit');
+  assert.equal(calls[0].cache, 'no-store');
+  assert.ok(!result.url.includes(uploadCode));
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE|evil\.example/);
+});
+
+test('malformed playback capabilities, unsupported formats and invalid expiry dates are rejected', async (t) => {
+  const changes = [
+    { ok: false }, { token: undefined }, { token: '' }, { token: 'https://evil.example/token' },
+    { token: 'private\nvalue.signature' }, { token: 'a'.repeat(4097) + '.b' },
+    { mimeType: 'image/jpeg' }, { mimeType: 'video/x-msvideo' },
+    { expiresAt: undefined }, { expiresAt: 'not-a-date' }, { expiresAt: '2026-02-30T06:30:00.000Z' },
+  ];
+  t.mock.method(globalThis, 'fetch', async () => json({ ...playback(), ...changes.shift() }));
+  const count = changes.length;
+  for (let index = 0; index < count; index += 1) {
+    await assert.rejects(getGalleryPlayback(endpoint, photoId, { uploadCode }), { code: 'invalid-response' });
+  }
+});
+
+test('video playback errors stay private and invalid IDs fail before any network request', async (t) => {
+  const replies = [json({ error: uploadCode }, 404), json({ error: uploadCode }, 503), json({ error: uploadCode }, 401)];
+  const mock = t.mock.method(globalThis, 'fetch', async () => replies.shift());
+  await assert.rejects(getGalleryPlayback(endpoint, '../PRIVATE_FILE', { uploadCode }), { code: 'not-found' });
+  assert.equal(mock.mock.callCount(), 0);
+  for (const status of [404, 503, 401]) {
+    await assert.rejects(getGalleryPlayback(endpoint, photoId, { uploadCode }), (error) => {
+      assert.equal(error.status, status);
+      assert.ok(!`${error.message}${JSON.stringify(error)}`.includes(uploadCode));
+      if (status === 404) assert.equal(error.message, 'This video is no longer available.');
+      return true;
+    });
   }
 });
 

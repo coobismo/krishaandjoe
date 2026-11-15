@@ -79,7 +79,7 @@ test('preflight permits required methods and headers and exposes Retry-After', a
   assert.equal(response.status, 204);
   assert.match(response.headers.get('access-control-allow-methods'), /PUT/);
   assert.match(response.headers.get('access-control-allow-headers'), /X-Upload-Token/);
-  assert.equal(response.headers.get('access-control-expose-headers'), 'Retry-After');
+  assert.match(response.headers.get('access-control-expose-headers'), /Retry-After/);
   assert.equal(calls.length, 0);
 });
 

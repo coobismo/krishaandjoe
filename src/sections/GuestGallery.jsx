@@ -1,11 +1,12 @@
-import { ArrowLeft, ArrowRight, Images, LoaderCircle, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Images, LoaderCircle, Play, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { GuestPhotoImage } from '../components/GuestPhotoImage.jsx';
+import { GuestVideoPlayer } from '../components/GuestVideoPlayer.jsx';
 import { PHOTO_UPLOAD } from '../data/wedding.js';
 import { useGuestGallery } from '../features/photos/useGuestGallery.js';
 import { isUploadEndpoint } from '../features/photos/uploadPhoto.mjs';
+import { isGalleryVideo } from '../features/photos/galleryMedia.mjs';
 
-const sharedDate = (value) => new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' }).format(new Date(value));
 const sharedBy = (photo) => typeof photo.guestName === 'string' && photo.guestName
   ? `Shared by ${photo.guestName}` : 'Shared with love';
 
@@ -41,6 +42,8 @@ function PhotoLightbox({ photos, selected, onSelect, onClose, onUnavailable, ret
       onCancel={(event) => { event.preventDefault(); onClose(); }}
       onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
       onKeyDown={(event) => {
+        // Native video controls use these keys to seek through the recording.
+        if (event.target.closest?.('video')) return;
         if (event.key === 'ArrowLeft') { event.preventDefault(); changePhoto(-1); }
         if (event.key === 'ArrowRight') { event.preventDefault(); changePhoto(1); }
       }}
@@ -48,16 +51,20 @@ function PhotoLightbox({ photos, selected, onSelect, onClose, onUnavailable, ret
       <div className="guestLightboxBody">
         <header className="guestLightboxHeader">
           <div>
-            <p id="guest-lightbox-title">A day to remember</p>
-            <span className="guestPhotoAttribution">{sharedBy(selected)} · {sharedDate(selected.createdAt)}</span>
+            <p id="guest-lightbox-title">Our Wedding Gallery</p>
+            <span className="guestPhotoAttribution">{sharedBy(selected)}</span>
           </div>
           <button aria-label="Close photo" className="guestLightboxControl" onClick={onClose} ref={closeButton} type="button"><X size={24} aria-hidden="true" /></button>
         </header>
-        <GuestPhotoImage key={selected.id} endpoint={PHOTO_UPLOAD.endpoint} uploadCode={PHOTO_UPLOAD.uploadCode} photo={selected} variant="preview" onUnavailable={onUnavailable} />
+        <div className="guestLightboxMedia">
+          {isGalleryVideo(selected)
+            ? <GuestVideoPlayer key={selected.id} endpoint={PHOTO_UPLOAD.endpoint} uploadCode={PHOTO_UPLOAD.uploadCode} photo={selected} onUnavailable={onUnavailable} />
+            : <GuestPhotoImage key={selected.id} endpoint={PHOTO_UPLOAD.endpoint} uploadCode={PHOTO_UPLOAD.uploadCode} photo={selected} variant="preview" onUnavailable={onUnavailable} />}
+        </div>
         <footer className="guestLightboxFooter">
-          <button aria-label="Previous photo" className="guestLightboxControl" disabled={index <= 0} onClick={() => changePhoto(-1)} type="button"><ArrowLeft size={22} aria-hidden="true" /></button>
-          <span role="status" aria-atomic="true">{index >= 0 ? `${index + 1} of ${photos.length}` : 'Guest photo'}</span>
-          <button aria-label="Next photo" className="guestLightboxControl" disabled={index < 0 || index >= photos.length - 1} onClick={() => changePhoto(1)} type="button"><ArrowRight size={22} aria-hidden="true" /></button>
+          <button aria-label="Previous memory" className="guestLightboxControl" disabled={index <= 0} onClick={() => changePhoto(-1)} type="button"><ArrowLeft size={22} aria-hidden="true" /></button>
+          <span role="status" aria-atomic="true">{index >= 0 ? `${index + 1} of ${photos.length}` : 'Guest memory'}</span>
+          <button aria-label="Next memory" className="guestLightboxControl" disabled={index < 0 || index >= photos.length - 1} onClick={() => changePhoto(1)} type="button"><ArrowRight size={22} aria-hidden="true" /></button>
         </footer>
       </div>
     </dialog>
@@ -96,10 +103,11 @@ export function GuestGallery({ refreshKey = 0, onAddMemory }) {
         {gallery.photos.length > 0 && <div className="guestPhotoGrid">
           {gallery.photos.map((photo, index) => (
             <figure className="guestPhotoCard" key={photo.id}>
-              <button aria-label={`Open guest photo ${index + 1}, shared on ${sharedDate(photo.createdAt)}`} aria-haspopup="dialog" type="button" onClick={() => setSelected(photo)}>
+              <button aria-label={`Open guest ${isGalleryVideo(photo) ? 'video' : 'photo'} ${index + 1}`} aria-haspopup="dialog" type="button" onClick={() => setSelected(photo)}>
                 <GuestPhotoImage endpoint={endpoint} uploadCode={uploadCode} photo={photo} onUnavailable={handleUnavailable} />
+                {isGalleryVideo(photo) && <span className="guestVideoBadge" aria-hidden="true"><Play size={23} fill="currentColor" /></span>}
               </button>
-              <figcaption><span className="guestPhotoAttribution">{sharedBy(photo)}</span><time dateTime={photo.createdAt}>{sharedDate(photo.createdAt)}</time></figcaption>
+              <figcaption><span className="guestPhotoAttribution">{sharedBy(photo)}</span></figcaption>
             </figure>
           ))}
         </div>}

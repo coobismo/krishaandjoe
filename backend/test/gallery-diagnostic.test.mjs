@@ -76,6 +76,20 @@ test('safe comparisons distinguish a listed trashed file, missing file, and meta
   assert.equal(result.photos[2].idMatches, true);
 });
 
+test('video gallery records receive the same read-only availability checks without fetching media or playback tokens', async () => {
+  const video = { ...makePhoto(), mimeType: 'video/mp4' };
+  const testCase = fixture([video]);
+  const result = await diagnoseGallery(testCase.options);
+  assert.equal(result.photos[0].indexValid, true);
+  assert.equal(result.photos[0].driveFound, true);
+  assert.equal(result.photos[0].mimeMatches, true);
+  assert.equal(result.photos[0].listedByApi, true);
+  assert.deepEqual(testCase.driveCalls, [video.fileId]);
+  assert.equal(testCase.calls.length, 2);
+  assert.ok(testCase.calls.every((call) => !/\/video|\/playback|alt=media/.test(call.url)));
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE_|SECRET_LINK|video\/mp4/);
+});
+
 test('one folder query distinguishes an untrashed listed photo outside the album from one still inside', async () => {
   const testCase = fixture([makePhoto(), makePhoto()]);
   const folderId = 'PRIVATE_CONFIGURED_FOLDER';

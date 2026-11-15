@@ -28,11 +28,20 @@ test('gallery indexing normalizes a guest credit and leaves unnamed or malformed
   assert.equal(shortened, 'J'.repeat(99));
 });
 
-test('unconfirmed, invalid, empty and non-photo uploads are excluded', () => {
+test('unconfirmed, invalid, empty and unsupported media uploads are excluded', () => {
   for (const change of [
     { status: 'uploading' }, { size: 0 }, { uploadId: 'not-a-uuid' }, { fileId: '../file' },
-    { mimeType: 'video/mp4' }, { mimeType: 'image/svg+xml' }, { completedAt: new Date('invalid') },
+    { mimeType: 'audio/mpeg' }, { mimeType: 'image/svg+xml' }, { completedAt: new Date('invalid') },
   ]) assert.equal(photoForCompletedUpload({ ...uploaded(), ...change }), null);
+});
+
+test('confirmed uploaded videos are indexed with guest credits and no upload credentials', () => {
+  for (const mimeType of ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v', 'video/3gpp', 'video/3gpp2']) {
+    const media = photoForCompletedUpload({ ...uploaded(), mimeType });
+    assert.equal(media.mimeType, mimeType);
+    assert.equal(media.guestName, 'Private guest');
+    assert.deepEqual(Object.keys(media).sort(), ['createdAt', 'fileId', 'guestName', 'id', 'mimeType', 'size']);
+  }
 });
 
 test('legacy complete images accept Firestore timestamps and the original creation date', () => {

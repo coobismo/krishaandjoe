@@ -153,7 +153,7 @@ test('real client and HTTP service preserve a multi-chunk video and verify its D
     `bytes ${UPLOAD_CHUNK_BYTES}-${file.size - 1}/${file.size}`,
   ]);
   assert.ok(requests.slice(1).every((request) => request.contentType === 'application/octet-stream'));
-  assert.deepEqual(progress, [0, UPLOAD_CHUNK_BYTES, file.size]);
+  assert.deepEqual(progress, [0, 0, UPLOAD_CHUNK_BYTES, file.size]);
   assert.deepEqual(drive.chunks.map((chunk) => chunk.bytes), [UPLOAD_CHUNK_BYTES, 97]);
   assert.equal(drive.files.size, 1);
   const completed = [...drive.files.values()][0];

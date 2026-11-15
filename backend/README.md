@@ -434,19 +434,20 @@ downloaded service account key is required.
 Metadata: `{uploadId, name, mimeType, size, guestName?}`. Receipts contain
 `{ok, uploadId, status, uploadedBytes, chunkBytes}`, with `token` and `expiresAt`
 on initialization. A `complete` receipt requires verified Drive metadata.
-The gallery endpoints below expose only completed guest photos to callers with
-the existing guest code. Original file browsing remains unavailable.
+The gallery endpoints below expose completed guest photos and videos to callers
+with the existing guest code. Video playback uses the scoped capability below;
+Drive browsing URLs and owner credentials remain private.
 
 ## Guest photo gallery
 
 The gallery uses a separate durable Firestore collection, `weddingPhotoGallery`.
-Verified image uploads are indexed atomically with upload completion. Album
+Verified photo and video uploads are indexed atomically with upload completion. Album
 entries have no upload-session TTL, so they remain after the temporary
-`weddingPhotoUploads` records expire. Videos and the uploader connection-check
-image are excluded. Completed load-test photos are indexed and displayed like
-other guest photos.
+`weddingPhotoUploads` records expire. The uploader connection-check image is
+excluded. Completed load-test photos are indexed and displayed like other guest
+photos.
 
-The first gallery request imports already completed image-upload records that
+The first gallery request imports already completed photo/video upload records that
 still exist in `weddingPhotoUploads`, up to 5,000 legacy records. Open the testing
 link after deployment to import existing photos before those temporary records
 expire. Files added directly to Drive outside this uploader are not imported.
@@ -456,6 +457,25 @@ expire. Files added directly to Drive outside this uploader are not imported.
 | `GET /v1/gallery?cursor=...` | Guest code in `X-Upload-Code`; paginated photo IDs, dates and MIME types |
 | `GET /v1/gallery/:photoId/image?variant=thumbnail` | Guest code; private image bytes for the grid |
 | `GET /v1/gallery/:photoId/image?variant=preview` | Guest code; larger private preview bytes |
+| `GET /v1/gallery/:photoId/playback` | Guest code; short-lived video capability, expiry and MIME type |
+| `GET /v1/gallery/:photoId/video?token=...` | Video capability; private byte-range playback stream |
+
+The playback authorization response is `{ok, token, expiresAt, mimeType}`.
+The website constructs a URL on the configured backend using that capability;
+the guest password is never placed in a video URL. The capability is scoped to
+one gallery item and expires after 30 minutes. Every stream request rechecks
+current folder membership, upload identity, size, MIME type and trash status.
+Playback supports a single HTTP `Range` so native browser controls can seek.
+The backend streams with backpressure and cancels upstream reads when a viewer
+disconnects; it does not buffer or cache whole videos.
+
+The grid and initial video poster reuse the authenticated thumbnail endpoint.
+A missing video thumbnail returns a retryable preview state instead of fetching
+the original video as an image. A new backend deployment enables video indexing
+and playback; deploy the rebuilt website afterward to show video cards and
+controls. Existing videos can be imported only while their completed upload
+records remain available. Browser codec support still applies; no video
+transcoding service is introduced.
 
 The API accepts gallery upload UUIDs, never caller-supplied Drive IDs or URLs.
 Before listing or serving a photo, including a cached preview, it queries the

@@ -1,11 +1,14 @@
 import { createServer } from 'node:http';
+import { Readable, Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { ApiError } from './errors.mjs';
 import { safeDiagnostic } from './diagnostics.mjs';
+import { GALLERY_VIDEO_MIME_TYPES } from './gallery-index.mjs';
 
 const MAX_JSON_BYTES = 32 * 1024;
 const MAX_CHUNK_BYTES = 4 * 1024 * 1024;
 const CORS_METHODS = 'GET, POST, PUT, OPTIONS';
-const CORS_HEADERS = 'Content-Type, Content-Range, X-Upload-Code, X-Upload-Token';
+const CORS_HEADERS = 'Content-Type, Content-Range, X-Upload-Code, X-Upload-Token, Range';
 const ALLOWED_HEADERS = new Set(CORS_HEADERS.toLowerCase().split(', '));
 const GALLERY_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
 
@@ -111,7 +114,7 @@ function applyCors(request, response, allowedOrigins) {
       throw apiError(403, 'This website is not allowed to use this uploader.');
     }
     response.setHeader('Access-Control-Allow-Origin', origin);
-    response.setHeader('Access-Control-Expose-Headers', 'Retry-After');
+    response.setHeader('Access-Control-Expose-Headers', 'Retry-After, Accept-Ranges, Content-Range, Content-Length');
   }
 }
 
@@ -148,10 +151,12 @@ export function createUploadServer({ service, gallery, allowedOrigins, logger = 
       const collectionPath = url.pathname === '/v1/uploads';
       const galleryPath = Boolean(gallery) && url.pathname === '/v1/gallery';
       const galleryImageMatch = gallery && /^\/v1\/gallery\/([^/]+)\/image$/.exec(url.pathname);
+      const galleryPlaybackMatch = gallery && /^\/v1\/gallery\/([^/]+)\/playback$/.exec(url.pathname);
+      const galleryVideoMatch = gallery && /^\/v1\/gallery\/([^/]+)\/video$/.exec(url.pathname);
       // /health is suitable for the public Cloud Run URL. Keep the original
       // /healthz alias for local checks and expose readiness at the base URL.
       const healthPath = ['/', '/health', '/healthz'].includes(url.pathname);
-      if (!collectionPath && !uploadMatch && !healthPath && !galleryPath && !galleryImageMatch) {
+      if (!collectionPath && !uploadMatch && !healthPath && !galleryPath && !galleryImageMatch && !galleryPlaybackMatch && !galleryVideoMatch) {
         throw apiError(404, 'This upload endpoint was not found.');
       }
 
@@ -195,6 +200,71 @@ export function createUploadServer({ service, gallery, allowedOrigins, logger = 
         return;
       }
 
+      if (galleryPlaybackMatch && request.method === 'GET') {
+        if ([...url.searchParams.keys()].length) throw apiError(400, 'The video playback request is invalid.');
+        const result = await gallery.playback(galleryPlaybackMatch[1], request.headers['x-upload-code']);
+        sendJson(response, 200, result);
+        return;
+      }
+
+      if (galleryVideoMatch && request.method === 'GET') {
+        if ([...url.searchParams.keys()].some((key) => key !== 'token') || url.searchParams.getAll('token').length !== 1) {
+          throw apiError(400, 'The video playback request is invalid.');
+        }
+        const controller = new AbortController();
+        const abort = () => { if (!response.writableFinished) controller.abort(); };
+        const timer = setTimeout(() => controller.abort(), 240_000);
+        response.once('close', abort);
+        request.once('aborted', abort);
+        try {
+          const media = await gallery.video(galleryVideoMatch[1], {
+            token: url.searchParams.get('token'), range: request.headers.range, signal: controller.signal,
+          });
+          if (controller.signal.aborted || response.destroyed) { await media?.body?.cancel?.().catch(() => {}); return; }
+          const rangeMatch = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(media?.contentRange || '');
+          const range = rangeMatch?.slice(1).map(Number);
+          const validRange = range && range.every(Number.isSafeInteger) && range[0] >= 0 && range[1] >= range[0]
+            && range[1] < range[2] && range[2] <= 500 * 1024 * 1024 && range[1] - range[0] + 1 === media.contentLength;
+          if (!media || !media.body?.getReader || ![200, 206].includes(media.status) || !GALLERY_VIDEO_MIME_TYPES.has(media.contentType)
+              || !Number.isSafeInteger(media.contentLength) || media.contentLength <= 0 || media.contentLength > 500 * 1024 * 1024
+              || (media.status === 206 ? !validRange : media.contentRange !== undefined)) {
+            await media?.body?.cancel?.().catch(() => {});
+            throw apiError(503, 'This video is temporarily unavailable. Please try again.', true);
+          }
+          let received = 0;
+          const bounded = new Transform({
+            transform(chunk, _encoding, callback) {
+              received += chunk.length;
+              if (received > media.contentLength) callback(new Error('Invalid media length.'));
+              else callback(null, chunk);
+            },
+            flush(callback) { callback(received === media.contentLength ? null : new Error('Incomplete media response.')); },
+          });
+          response.writeHead(media.status, {
+            'Content-Type': media.contentType,
+            // Large Cloud Run HTTP/1 responses must remain chunked; the
+            // transform still enforces the exact verified byte count.
+            ...(media.status === 206 && media.contentLength <= 8 * 1024 * 1024 ? { 'Content-Length': media.contentLength } : {}),
+            'Content-Disposition': 'inline',
+            'Accept-Ranges': 'bytes',
+            ...(media.status === 206 ? { 'Content-Range': media.contentRange } : {}),
+            'Cache-Control': 'private, no-store',
+            'Referrer-Policy': 'no-referrer',
+            'Vary': 'Origin',
+          });
+          await pipeline(Readable.fromWeb(media.body), bounded, response, { signal: controller.signal });
+        } catch (error) {
+          controller.abort();
+          if (response.destroyed || response.headersSent) { response.destroy(); return; }
+          throw error;
+        } finally {
+          clearTimeout(timer);
+          response.removeListener('close', abort);
+          request.removeListener('aborted', abort);
+        }
+        return;
+      }
+
       if (collectionPath && request.method === 'POST') {
         if (contentType(request) !== 'application/json') {
           throw apiError(415, 'Use application/json to begin an upload.');
@@ -228,13 +298,14 @@ export function createUploadServer({ service, gallery, allowedOrigins, logger = 
         return;
       }
 
-      response.setHeader('Allow', healthPath || galleryPath || galleryImageMatch ? 'GET, OPTIONS' : collectionPath ? 'POST, OPTIONS' : 'GET, PUT, OPTIONS');
+      response.setHeader('Allow', healthPath || galleryPath || galleryImageMatch || galleryPlaybackMatch || galleryVideoMatch ? 'GET, OPTIONS' : collectionPath ? 'POST, OPTIONS' : 'GET, PUT, OPTIONS');
       throw apiError(405, 'This upload method is not supported.');
     } catch (error) {
       const status = error instanceof ApiError && Number.isInteger(error.status)
         ? error.status : 500;
       const retryable = error instanceof ApiError ? Boolean(error.retryable) : true;
       const message = error instanceof ApiError ? error.message : 'The upload service is temporarily unavailable. Please try again.';
+      if (status === 416 && Number.isSafeInteger(error.rangeSize) && error.rangeSize > 0) response.setHeader('Content-Range', `bytes */${error.rangeSize}`);
       if (status === 429 || status === 503) {
         response.setHeader('Retry-After', String(Math.max(1, Number(error.retryAfter) || 2)));
       }

@@ -192,7 +192,7 @@ test('gallery reads return only a normalized optional guest credit beside image 
   assert.equal((await repository.list()).photos.find(({ id }) => id === uuid(1)).guestName, 'José Cruz');
 });
 
-test('legacy completed uploads seed durable image-only records and prefer completedAt', async () => {
+test('legacy completed uploads seed durable image and video records and prefer completedAt', async () => {
   const completion = new Date('2026-11-21T10:00:00.000Z');
   const firestore = fakeFirestore({ uploads: [
     upload(1, { createdAt: timestamp(instant), completedAt: timestamp(completion) }),
@@ -207,7 +207,7 @@ test('legacy completed uploads seed durable image-only records and prefer comple
   ] });
   const repository = createGalleryRepository(firestore);
   const { photos } = await repository.list();
-  assert.deepEqual(photos.map(({ id }) => id), [uuid(1), uuid(13), uuid(12), uuid(11), uuid(2)]);
+  assert.deepEqual(photos.map(({ id }) => id), [uuid(1), uuid(13), uuid(12), uuid(11), uuid(3), uuid(2)]);
   assert.equal(photos[0].createdAt.getTime(), completion.getTime());
   assert.equal(photos[1].createdAt.getTime(), instant.getTime());
   for (const write of firestore.writes) {
@@ -265,8 +265,8 @@ test('a failed seed is retried on the next list instead of poisoning the instanc
 });
 
 test('legacy scanning uses bounded pages and stops after 5000 source records', async () => {
-  // Videos still count toward the scan bound but do not require transactions.
-  const firestore = fakeFirestore({ uploads: Array.from({ length: 5100 }, (_, index) => upload(index + 1, { mimeType: 'video/mp4' })) });
+  // Unsupported media still count toward the scan bound but need no writes.
+  const firestore = fakeFirestore({ uploads: Array.from({ length: 5100 }, (_, index) => upload(index + 1, { mimeType: 'audio/mpeg' })) });
   await createGalleryRepository(firestore).seedCompletedUploads();
   assert.equal(firestore.queries.length, 25);
   assert.ok(firestore.queries.every(({ limit }) => limit <= 200));
@@ -275,7 +275,7 @@ test('legacy scanning uses bounded pages and stops after 5000 source records', a
 });
 
 test('malformed indexed metadata is excluded from reads', async () => {
-  const firestore = fakeFirestore({ photos: [image(1, { fileId: '../unsafe' }), image(2, { size: 0 }), image(3, { mimeType: 'video/mp4' })] });
+  const firestore = fakeFirestore({ photos: [image(1, { fileId: '../unsafe' }), image(2, { size: 0 }), image(3, { mimeType: 'audio/mpeg' })] });
   const repository = createGalleryRepository(firestore);
   assert.deepEqual((await repository.list()).photos, []);
   assert.equal(await repository.get(uuid(1)), null);

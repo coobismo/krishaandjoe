@@ -1,8 +1,9 @@
 import { createUploadAuth } from './auth.mjs';
 import { ApiError } from './errors.mjs';
-import { GALLERY_IMAGE_MIME_TYPES } from './gallery-index.mjs';
+import { GALLERY_MEDIA_MIME_TYPES, GALLERY_VIDEO_MIME_TYPES } from './gallery-index.mjs';
 import { safeDiagnostic } from './diagnostics.mjs';
 import { guestNameFromUploadDescription, normalizeGuestName } from './guest-name.mjs';
+import { createPlaybackAuth, MAX_GALLERY_VIDEO_BYTES, parseVideoRange } from './gallery-video.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SERVED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
@@ -19,8 +20,8 @@ const unavailable = (error) => new ApiError(503, 'The photo album is temporarily
 function validPhoto(photo, id = photo?.id) {
   return photo && typeof id === 'string' && UUID.test(id) && photo.id === id
     && typeof photo.fileId === 'string' && /^[A-Za-z0-9_-]{1,256}$/.test(photo.fileId)
-    && GALLERY_IMAGE_MIME_TYPES.has(photo.mimeType)
-    && Number.isSafeInteger(photo.size) && photo.size > 0;
+    && GALLERY_MEDIA_MIME_TYPES.has(photo.mimeType)
+    && Number.isSafeInteger(photo.size) && photo.size > 0 && photo.size <= MAX_GALLERY_VIDEO_BYTES;
 }
 
 export function createGalleryService({
@@ -41,6 +42,7 @@ export function createGalleryService({
   let metadataActive = 0;
   let cachedBytes = 0;
   const timestamp = () => { const value = now(); return value instanceof Date ? value.getTime() : value; };
+  const playbackAuth = createPlaybackAuth({ tokenSecret, now: timestamp });
 
   function authenticate(code) {
     if (!auth.checkCode(code)) throw new ApiError(401, 'The guest code is incorrect. Please reopen the wedding website.');
@@ -128,7 +130,7 @@ export function createGalleryService({
     return metadata;
   }
 
-  async function loadImage(id, variant) {
+  async function loadMedia(id) {
     await repository.seedCompletedUploads();
     const photo = await repository.get(id);
     if (!validPhoto(photo, id)) { forgetPhoto(id); throw notFound(); }
@@ -138,6 +140,11 @@ export function createGalleryService({
     if (!(await folderFiles([photo])).has(photo.fileId)) { forgetPhoto(id); throw notFound(); }
     const metadata = await verifiedMetadata(photo);
     if (!metadata) throw notFound();
+    return { photo, metadata };
+  }
+
+  async function loadImage(id, variant) {
+    const { metadata } = await loadMedia(id);
     const hit = cached(`${id}:${variant}`);
     if (hit) return hit;
     const result = await drive.thumbnail(metadata, { variant });
@@ -203,6 +210,38 @@ export function createGalleryService({
       }).finally(() => { inflight.delete(key); });
       inflight.set(key, pending);
       return pending;
+    },
+
+    async playback(id, code) {
+      authenticate(code);
+      if (typeof id !== 'string' || !UUID.test(id)) throw notFound();
+      const mediaId = id.toLowerCase();
+      try {
+        const { photo } = await loadMedia(mediaId);
+        if (!GALLERY_VIDEO_MIME_TYPES.has(photo.mimeType)) throw notFound();
+        return { ok: true, ...playbackAuth.issue(mediaId), mimeType: photo.mimeType };
+      } catch (error) {
+        if (error instanceof ApiError) throw error;
+        throw unavailable(error);
+      }
+    },
+
+    async video(id, options = {}) {
+      if (!options || typeof options !== 'object' || Array.isArray(options)
+          || typeof id !== 'string' || !UUID.test(id) || !playbackAuth.check(id.toLowerCase(), options.token)) {
+        throw new ApiError(401, 'This video session has expired. Please reopen the memory.');
+      }
+      const mediaId = id.toLowerCase();
+      try {
+        if (options.signal?.aborted) throw new DOMException('The video request was cancelled.', 'AbortError');
+        const { photo, metadata } = await loadMedia(mediaId);
+        if (!GALLERY_VIDEO_MIME_TYPES.has(photo.mimeType)) throw notFound();
+        const range = parseVideoRange(options.range, photo.size);
+        return await drive.media(metadata, { range, signal: options.signal });
+      } catch (error) {
+        if (error instanceof ApiError) throw error;
+        throw unavailable(error);
+      }
     },
   };
 }

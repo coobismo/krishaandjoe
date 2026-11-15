@@ -1,4 +1,4 @@
-import { GALLERY_IMAGE_MIME_TYPES } from '../src/gallery-index.mjs';
+import { GALLERY_MEDIA_MIME_TYPES } from '../src/gallery-index.mjs';
 import { safeDiagnostic } from '../src/diagnostics.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -67,7 +67,7 @@ function indexRecord(document, prefix) {
   };
   record.valid = UUID.test(id) && id === id.toLowerCase() && record.storedId === id
     && typeof record.fileId === 'string' && FILE_ID.test(record.fileId)
-    && GALLERY_IMAGE_MIME_TYPES.has(record.mimeType)
+    && GALLERY_MEDIA_MIME_TYPES.has(record.mimeType)
     && Number.isSafeInteger(record.size) && record.size > 0 && record.size <= 500 * 1024 * 1024
     && Number.isFinite(record.createdAt.getTime());
   return record;

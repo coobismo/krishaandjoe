@@ -253,7 +253,9 @@ test('Cloud Run uploads binary slices and reports only acknowledged byte progres
   assert.equal(calls[2].body.size, 7);
   assert.equal(calls[1].headers['Content-Type'], 'application/octet-stream');
   assert.ok(calls.every((call) => call.credentials === 'omit' && call.redirect === 'error' && call.mode === 'cors'));
-  assert.deepEqual(progress.map((event) => event.uploadedBytes), [0, chunkBytes, video.size]);
+  assert.deepEqual(progress.map((event) => event.uploadedBytes), [0, 0, chunkBytes, video.size]);
+  assert.equal(progress[0].phase, 'preparing');
+  assert.ok(progress.every((event) => event.sentBytes === event.uploadedBytes), 'The Node fallback reports confirmed bytes without simulated transfer events');
   assert.equal(progress.at(-1).phase, 'confirming');
   assert.ok(progress.every((event) => event.totalBytes === video.size));
 });

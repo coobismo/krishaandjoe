@@ -1,5 +1,6 @@
 import { ApiError, DriveError } from './errors.mjs';
 import { googleErrorReason, safeDiagnostic } from './diagnostics.mjs';
+import { GALLERY_VIDEO_MIME_TYPES } from './gallery-index.mjs';
 
 const API = 'https://www.googleapis.com/drive/v3/files';
 const FIELDS = 'id,size,mimeType,appProperties,trashed,thumbnailLink,description';
@@ -7,6 +8,7 @@ const ID = /^[A-Za-z0-9_-]{1,256}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_GRID_ORIGINAL_BYTES = 1024 * 1024;
+const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
 
 function preparing(reason = 'unknown') {
@@ -55,7 +57,7 @@ async function jsonFrom(response, operation) {
   catch { throw new DriveError(502, { operation, reason: 'invalid_response', upstreamStatus: response.status }); }
 }
 
-export function createDriveGalleryProvider({ auth, fetchImpl = globalThis.fetch, timeoutMs = 25000 }) {
+export function createDriveGalleryProvider({ auth, fetchImpl = globalThis.fetch, timeoutMs = 25000, mediaHeaderTimeoutMs = 60_000 }) {
   async function token() {
     let timer;
     try {
@@ -157,6 +159,92 @@ export function createDriveGalleryProvider({ auth, fetchImpl = globalThis.fetch,
       }
       if (!response.ok) return failure(response, operation);
       return jsonFrom(response, operation);
+    },
+
+    async media(metadata, { range, signal } = {}) {
+      const operation = 'get_media';
+      const invalid = () => new DriveError(502, { operation, reason: 'invalid_response', upstreamStatus: undefined });
+      const size = Number(metadata?.size);
+      if (!metadata || typeof metadata.id !== 'string' || !ID.test(metadata.id)
+          || !GALLERY_VIDEO_MIME_TYPES.has(metadata.mimeType) || !Number.isSafeInteger(size) || size <= 0 || size > MAX_VIDEO_BYTES
+          || (range !== undefined && (!Number.isSafeInteger(range?.start) || !Number.isSafeInteger(range?.end)
+            || range.start < 0 || range.end < range.start || range.end >= size))) throw invalid();
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      let timer;
+      let reader;
+      let received = 0;
+      let closed = false;
+      const cleanup = () => {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', abort);
+      };
+      const cancel = async () => {
+        if (closed) return;
+        closed = true;
+        controller.abort();
+        cleanup();
+        try { await reader?.cancel(); } catch { /* An aborted upstream may already be closed. */ }
+      };
+      signal?.addEventListener('abort', abort, { once: true });
+      try {
+        if (signal?.aborted) throw new DOMException('Media request cancelled.', 'AbortError');
+        const accessToken = await token();
+        if (signal?.aborted) throw new DOMException('Media request cancelled.', 'AbortError');
+        // Bound response headers independently; a playing video must not inherit
+        // the short thumbnail deadline for its complete response body.
+        timer = setTimeout(abort, mediaHeaderTimeoutMs);
+        const query = new URLSearchParams({ alt: 'media', supportsAllDrives: 'true' });
+        const response = await fetchImpl(`${API}/${metadata.id}?${query}`, {
+          headers: { Authorization: `Bearer ${accessToken}`, ...(range ? { Range: `bytes=${range.start}-${range.end}` } : {}) },
+          redirect: 'manual', signal: controller.signal,
+        });
+        clearTimeout(timer);
+        const expectedStatus = range ? 206 : 200;
+        if (response.status !== expectedStatus) {
+          await response.body?.cancel().catch(() => {});
+          if (![200, 206].includes(response.status)) throw new DriveError(response.status, { operation, upstreamStatus: response.status });
+          throw invalid();
+        }
+        const contentType = (response.headers.get('content-type') || '').split(';', 1)[0].trim().toLowerCase();
+        const length = response.headers.get('content-length');
+        const contentLength = range ? range.end - range.start + 1 : size;
+        const contentRange = response.headers.get('content-range');
+        if (contentType !== metadata.mimeType || !/^\d+$/.test(length || '') || Number(length) !== contentLength
+            || (range ? contentRange !== `bytes ${range.start}-${range.end}/${size}` : contentRange !== null)
+            || !response.body?.getReader) {
+          await response.body?.cancel().catch(() => {});
+          throw invalid();
+        }
+        reader = response.body.getReader();
+        const body = new ReadableStream({
+          async pull(destination) {
+            try {
+              const part = await reader.read();
+              if (part.done) {
+                if (received !== contentLength) throw invalid();
+                closed = true;
+                cleanup();
+                reader.releaseLock();
+                destination.close();
+                return;
+              }
+              received += part.value.byteLength;
+              if (received > contentLength) throw invalid();
+              destination.enqueue(part.value);
+            } catch (error) {
+              await cancel();
+              destination.error(error instanceof DriveError ? error : new DriveError(503, { operation, reason: 'network_error', upstreamStatus: undefined }));
+            }
+          },
+          cancel,
+        }, { highWaterMark: 0 });
+        return { body, status: expectedStatus, contentType, contentLength, ...(range ? { contentRange } : {}) };
+      } catch (error) {
+        await cancel();
+        if (error instanceof DriveError) throw error;
+        throw new DriveError(503, { operation, reason: controller.signal.aborted ? 'timeout' : 'network_error', upstreamStatus: undefined });
+      }
     },
 
     async thumbnail(metadata, { variant = 'thumbnail' } = {}) {

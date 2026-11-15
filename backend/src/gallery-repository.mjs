@@ -1,6 +1,6 @@
 import { FieldPath } from '@google-cloud/firestore';
 import { ApiError } from './errors.mjs';
-import { GALLERY_IMAGE_MIME_TYPES, photoForCompletedUpload } from './gallery-index.mjs';
+import { GALLERY_MEDIA_MIME_TYPES, photoForCompletedUpload } from './gallery-index.mjs';
 import { normalizeGuestName } from './guest-name.mjs';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -21,7 +21,7 @@ function asDate(value) {
 
 function validMetadata(data) {
   return data && typeof data.fileId === 'string' && FILE_ID.test(data.fileId)
-    && GALLERY_IMAGE_MIME_TYPES.has(data.mimeType)
+    && GALLERY_MEDIA_MIME_TYPES.has(data.mimeType)
     && Number.isSafeInteger(data.size) && data.size > 0 && data.size <= MAX_FILE_BYTES;
 }
 

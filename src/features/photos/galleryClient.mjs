@@ -1,10 +1,12 @@
 import { isUploadEndpoint } from './uploadPhoto.mjs';
+import { GALLERY_VIDEO_MIME_TYPES } from './galleryMedia.mjs';
 
 export const MAX_GALLERY_IMAGE_BYTES = 8 * 1024 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const PHOTO_TYPES = new Set([
+const MEDIA_TYPES = new Set([
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif',
   'image/heic', 'image/heif', 'image/tiff', 'image/bmp',
+  ...GALLERY_VIDEO_MIME_TYPES,
 ]);
 const DISPLAY_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
 
@@ -19,7 +21,8 @@ export class GalleryError extends Error {
 
 const aborted = () => new DOMException('The request was cancelled.', 'AbortError');
 const loadError = (isImage, code = 'network') => new GalleryError(
-  isImage ? 'We could not load this photo. Please try again.' : 'We could not load the gallery. Please try again.', code,
+  isImage === 'video' ? 'We could not load this video. Please try again.'
+    : isImage ? 'We could not load this photo. Please try again.' : 'We could not load the gallery. Please try again.', code,
 );
 
 function endpointBase(endpoint) {
@@ -39,10 +42,12 @@ function rejectStatus(response, isImage) {
     return new GalleryError('Please refresh the site and enter the guest password again.', 'unauthorized', status);
   }
   if (isImage && status === 404) {
-    return new GalleryError('This photo is no longer available.', 'not-found', status);
+    return new GalleryError(`This ${isImage === 'video' ? 'video' : 'photo'} is no longer available.`, 'not-found', status);
   }
   if (isImage && status === 503) {
-    return new GalleryError('This photo’s preview is still being prepared. Please try again.', 'not-ready', status);
+    return new GalleryError(isImage === 'video'
+      ? 'This video is temporarily unavailable. Please try again.'
+      : 'This photo’s preview is still being prepared. Please try again.', 'not-ready', status);
   }
   const error = loadError(isImage, status === 429 ? 'busy' : 'unavailable');
   error.status = status;
@@ -109,7 +114,7 @@ function galleryPage(body) {
   const photos = body.photos.map((photo) => {
     const timestamp = typeof photo?.createdAt === 'string' ? new Date(photo.createdAt) : null;
     if (typeof photo?.id !== 'string' || !UUID.test(photo.id) || seen.has(photo.id)
-      || !PHOTO_TYPES.has(photo.mimeType) || !timestamp || !Number.isFinite(timestamp.getTime())
+      || !MEDIA_TYPES.has(photo.mimeType) || !timestamp || !Number.isFinite(timestamp.getTime())
       || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(photo.createdAt)
       || timestamp.toISOString().slice(0, 19) !== photo.createdAt.slice(0, 19)) throw loadError(false, 'invalid-response');
     seen.add(photo.id);
@@ -187,4 +192,29 @@ export async function fetchGalleryImage(endpoint, photoId, { uploadCode, variant
   return request(`${base}/v1/gallery/${encodeURIComponent(photoId)}/image?${new URLSearchParams({ variant })}`, {
     uploadCode, signal, timeoutMs,
   }, imageBlob, true);
+}
+
+export async function getGalleryPlayback(endpoint, photoId, { uploadCode, signal, timeoutMs } = {}) {
+  const base = endpointBase(endpoint);
+  if (typeof photoId !== 'string' || !UUID.test(photoId)) {
+    throw new GalleryError('This video is no longer available.', 'not-found');
+  }
+  return request(`${base}/v1/gallery/${encodeURIComponent(photoId)}/playback`, {
+    uploadCode, signal, timeoutMs,
+  }, async (response) => {
+    const body = await response.json();
+    const expires = typeof body?.expiresAt === 'string' ? new Date(body.expiresAt) : null;
+    if (body?.ok !== true || typeof body.token !== 'string' || body.token.length > 4096
+        || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(body.token)
+        || !GALLERY_VIDEO_MIME_TYPES.has(body.mimeType)
+        || !expires || !Number.isFinite(expires.getTime()) || expires.toISOString() !== body.expiresAt) {
+      throw loadError('video', 'invalid-response');
+    }
+    // Native video cannot attach a guest-code header. This URL contains only
+    // the short-lived capability for this item, never the guest password.
+    return {
+      url: `${base}/v1/gallery/${encodeURIComponent(photoId)}/video?${new URLSearchParams({ token: body.token })}`,
+      mimeType: body.mimeType, expiresAt: body.expiresAt,
+    };
+  }, 'video');
 }

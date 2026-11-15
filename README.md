@@ -95,8 +95,8 @@ form in a dialog. Closing the dialog keeps selected files and active uploads in
 the page, with upload activity shown on the button. Each confirmed file updates
 the gallery automatically.
 
-The optional **Your name** field credits the guest sharing each photo. Gallery
-cards and the photo viewer show **Shared by [Name]**; leaving it blank keeps the
+The optional **Your name** field credits the guest sharing each memory. Gallery
+cards and the viewer show **Shared by [Name]**; leaving it blank keeps the
 caption **Shared with love**. The upload form explains that the name appears
 with the photos in the gallery. Existing photos can recover their original
 credit from a saved upload record or the uploader-generated Drive description
@@ -112,13 +112,19 @@ service. Deploy the complete `dist` directory through the existing workflow.
 
 ### Guest gallery
 
-The gallery shows completed photo uploads, newest first, with larger previews,
-keyboard navigation, pagination and automatic updates. It checks for new photos
+The gallery shows completed photo and video uploads, newest first, with larger
+previews, keyboard navigation, pagination and automatic updates. Videos have a
+thumbnail and play badge in the grid. Opening one shows its poster and a Play
+button; playback uses native controls and streams from the private backend
+instead of downloading the entire video into browser memory. Closing the viewer
+or moving to another memory stops playback. Photos and videos keep their aspect
+ratio within the browser viewport, including short and narrow windows.
+
+The gallery checks for new memories
 about every 30 seconds while the page is visible and online, preserving photos
 already loaded. Automatic checks pause while a photo is open and resume when
 it closes. Each successfully confirmed file triggers an immediate gallery
-update, including the first file in a batch. Videos remain
-in Drive and are excluded from this photo gallery.
+update, including the first file in a batch.
 
 Deleting a photo in Drive, moving it to Trash, or removing it from the wedding
 folder excludes it from new gallery requests. Reload the page to fully
@@ -128,7 +134,10 @@ file to the wedding folder makes it eligible to appear again.
 Gallery requests use the existing guest code. The backend serves private image
 previews without changing Drive sharing or exposing owner OAuth credentials.
 Newly uploaded HEIC and TIFF photos rely on Drive's preview generation; a retry
-is available while a preview is being prepared.
+is available while a preview is being prepared. Video thumbnails also depend on
+Drive processing. Playback remains available when a thumbnail is not ready.
+Video codec support depends on the guest's browser; unsupported videos show a
+helpful message. Originals are preserved and are not transcoded.
 
 Deploy the updated backend first, then deploy the website through its existing
 GitHub Pages workflow. No additional environment variable or OAuth permission
@@ -138,6 +147,14 @@ The recommended backend for 50–100 simultaneous guests is now the **Cloud Run
 resumable uploader**. It supports files up to 500 MB, independent transfers
 across guests, confirmed byte progress and retries without restarting the file.
 The destination remains the same wedding Drive folder.
+
+In the browser, the progress bar follows bytes sent to the upload backend,
+including movement within a chunk. Preparation has an indeterminate indicator;
+after sending, the status changes to “Saving to our album…” while the backend
+finishes. Displayed progress stays below 100% until the completed file has been
+verified. Connection recovery resets provisional progress to the confirmed
+offset before retrying. The Node load-test runner continues reporting only
+acknowledged bytes. Publish the rebuilt website to activate the progress UI.
 
 Follow the complete [Google Cloud setup guide](backend/README.md): create a
 billing-enabled project, authorize the Drive owner using the included helpers,

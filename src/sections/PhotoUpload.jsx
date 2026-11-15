@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { PHOTO_UPLOAD } from '../data/wedding.js';
 import { ACCEPTED_FILES, formatFileSize, getPhotoMimeType, getUploadLimits, isUploadEndpoint, MAX_FILES } from '../features/photos/uploadPhoto.mjs';
 import { usePhotoUploads } from '../features/photos/usePhotoUploads.js';
+import { uploadProgress } from '../features/photos/uploadProgress.mjs';
 
 function FilePreview({ file }) {
   const [preview, setPreview] = useState('');
@@ -23,15 +24,6 @@ function FilePreview({ file }) {
         : isVideo ? <Video size={22} /> : <Image size={22} />}
     </span>
   );
-}
-
-function fileStatus(entry, provider) {
-  if (entry.status === 'success') return 'Saved to our album';
-  if (entry.status === 'error') return 'Please try again';
-  if (entry.status !== 'uploading') return 'Ready to share';
-  if (entry.phase === 'confirming') return 'Confirming your upload…';
-  if (provider === 'cloud-run') return `Uploading ${Math.floor((entry.uploadedBytes || 0) / entry.file.size * 100)}%`;
-  return 'Uploading…';
 }
 
 export function PhotoUpload({ onUploadComplete, compact = false, onUploadingChange }) {
@@ -129,24 +121,27 @@ export function PhotoUpload({ onUploadComplete, compact = false, onUploadingChan
               {savedCount > 0 && <button className="memoryTextButton" disabled={uploads.isUploading} onClick={uploads.clearUploaded} type="button">Clear uploaded</button>}
             </div>
             <ul className="memoryQueue" aria-label="Selected memories">
-              {uploads.files.map((entry) => (
-                <li className={`memoryFile memoryFile-${entry.status}`} key={entry.uploadId}>
-                  <FilePreview file={entry.file} />
-                  <div className="memoryFileInfo">
-                    <span className="memoryFileName">{entry.file.name}</span>
-                    <span className="memoryFileDetail">
-                      {formatFileSize(entry.file.size)} · {fileStatus(entry, provider)}
-                    </span>
-                    {entry.status === 'uploading' && provider === 'cloud-run' && (
-                      <progress className="memoryProgress" aria-label={`Upload progress for ${entry.file.name}`} max={entry.file.size} value={entry.uploadedBytes || 0} />
-                    )}
-                    {entry.error && <span className="memoryFileError">{entry.error}</span>}
-                  </div>
-                  {entry.status === 'success' ? <Check className="memorySavedIcon" size={20} aria-label="Uploaded" />
-                    : entry.status === 'uploading' ? <LoaderCircle className="memorySpinner" size={20} aria-label="Uploading" />
-                      : <button aria-label={`Remove ${entry.file.name}`} className="memoryRemove" disabled={uploads.isUploading} onClick={() => uploads.removeFile(entry.uploadId)} type="button"><X size={18} aria-hidden="true" /></button>}
-                </li>
-              ))}
+              {uploads.files.map((entry) => {
+                const progress = uploadProgress(entry, provider);
+                return (
+                  <li className={`memoryFile memoryFile-${entry.status}`} key={entry.uploadId}>
+                    <FilePreview file={entry.file} />
+                    <div className="memoryFileInfo">
+                      <span className="memoryFileName">{entry.file.name}</span>
+                      <span className="memoryFileDetail">
+                        {formatFileSize(entry.file.size)} · {progress.label}
+                      </span>
+                      {entry.status === 'uploading' && provider === 'cloud-run' && (
+                        <progress className="memoryProgress" aria-label={`Upload progress for ${entry.file.name}`} aria-valuetext={progress.label} max={100} value={progress.indeterminate ? undefined : progress.percent} />
+                      )}
+                      {entry.error && <span className="memoryFileError">{entry.error}</span>}
+                    </div>
+                    {entry.status === 'success' ? <Check className="memorySavedIcon" size={20} aria-label="Uploaded" />
+                      : entry.status === 'uploading' ? <LoaderCircle className="memorySpinner" size={20} aria-label="Uploading" />
+                        : <button aria-label={`Remove ${entry.file.name}`} className="memoryRemove" disabled={uploads.isUploading} onClick={() => uploads.removeFile(entry.uploadId)} type="button"><X size={18} aria-hidden="true" /></button>}
+                  </li>
+                );
+              })}
             </ul>
             <div className="memoryUploadActions">
               <p className="memoryCount" role="status" aria-atomic="true">{savedCount} of {uploads.files.length} uploaded</p>

@@ -55,10 +55,14 @@ test('every album and image request authenticates before reads, cache access, or
 
 test('public album metadata excludes Drive IDs, filenames, URLs, sizes, credentials and session fields', async () => {
   const shared = photo({ name: 'private-name.jpg', thumbnailLink: 'private-url', token: 'private-token', expiresAt: new Date() });
-  const fixture = gallery([shared, photo({ mimeType: 'video/mp4' })]);
+  const video = photo({ mimeType: 'video/mp4' });
+  const fixture = gallery([shared, video]);
   const result = await fixture.service.list({ cursor: 'opaque-cursor' }, uploadCode);
   assert.deepEqual(result, {
-    ok: true, photos: [{ id: shared.id, createdAt: shared.createdAt.toISOString(), mimeType: 'image/jpeg' }], nextCursor: 'next-page',
+    ok: true, photos: [
+      { id: shared.id, createdAt: shared.createdAt.toISOString(), mimeType: 'image/jpeg' },
+      { id: video.id, createdAt: video.createdAt.toISOString(), mimeType: 'video/mp4' },
+    ], nextCursor: 'next-page',
   });
   assert.deepEqual(fixture.calls.list, [{ cursor: 'opaque-cursor', limit: 18 }]);
   assert.doesNotMatch(JSON.stringify(result), /private|drive-|expiresAt|token|fileId/);
