@@ -229,19 +229,70 @@ promising that capacity. Watch Cloud Run latency and errors, Drive quota
 responses, Firestore contention, memory and billing. Tune concurrency and
 instance limits from those measurements rather than the maximum settings.
 
-The included helper uses the same client transport and creates real generated
-BMP files. It privately prompts for the guest password and reports confirmed
-uploads and completion times. Start with 10 clients, then try 50 and 100:
+The included helper uses the same resumable upload transport as `/memories`.
+Each simulated guest uploads their files sequentially, while all guest queues
+run concurrently. It privately prompts for the guest password, prints progress
+every five seconds, and reports confirmed files, completed guest queues,
+completion percentiles, throughput and aggregate HTTP response counts. Passwords,
+tokens and provider error bodies are never printed.
+
+Inspect the plan first; `--dry-run` does not ask for credentials, allocate test
+photos, or make network requests:
+
+```bash
+node backend/scripts/load-test.mjs --endpoint https://YOUR_UPLOAD_SERVICE.run.app --clients 100 --megabytes 8 --dry-run
+```
+
+Run each stage separately and inspect its result before increasing the load:
 
 ```bash
 node backend/scripts/load-test.mjs --endpoint https://YOUR_UPLOAD_SERVICE.run.app --clients 10 --megabytes 8
+node backend/scripts/load-test.mjs --endpoint https://YOUR_UPLOAD_SERVICE.run.app --clients 50 --megabytes 8
+node backend/scripts/load-test.mjs --endpoint https://YOUR_UPLOAD_SERVICE.run.app --clients 100 --megabytes 8
 ```
 
-An 8 MB test file spans multiple chunks. A 100-client run writes roughly 800 MB
-to the configured Drive folder and consumes real cloud resources. Files are
-named `load-test-...bmp`; remove them from the test folder when finished.
-This measures clients sharing your connection; also test several real phones
-on the venue's Wi-Fi/mobile networks.
+Then test a longer queue, for example three photos per guest:
+
+```bash
+node backend/scripts/load-test.mjs --endpoint https://YOUR_UPLOAD_SERVICE.run.app --clients 100 --files-per-client 3 --megabytes 8
+```
+
+`--megabytes` uses MiB. One 100-guest run with one 8 MiB file each writes about
+800 MiB; three files each write about 2.34 GiB. Files are real, named exactly
+`load-test-UUID.bmp`, and go into the **endpoint's configured Drive folder**.
+They are deliberately excluded from the guest gallery. Remove those test files
+from Drive when finished. The helper does not automatically delete anything.
+
+For isolation, use a separately named Cloud Run service, Drive test folder and
+Firestore database via `FIRESTORE_DATABASE_ID`, or a separate test project.
+Do not use `deploy.mjs --folder TEST_FOLDER` to create staging: that helper
+updates the production service. A dedicated gallery test must also isolate
+Firestore, because otherwise its image records can affect production paging.
+
+For each stage, aim for every file independently confirmed, every guest queue
+completed, and zero final failures. In Cloud Run → `wedding-photo-uploads` →
+Metrics/Logs, watch request latency, HTTP 429/5xx responses, active instances,
+CPU, memory and container restarts. Check Drive API quota usage and Firestore
+errors too. A successful final receipt can hide recovered retries, so inspect
+the HTTP counts as well as the success total.
+
+This is an **upload protocol test**, not 100 browser sessions. While it runs,
+open `/memories` on several real phones and check gallery thumbnails, the photo
+viewer, upload progress and a normal photo's appearance after completion. The
+synthetic BMPs do not test gallery rendering, video uploads or HEIC previews.
+A full gallery-load test needs real image fixtures and simultaneous viewer
+traffic; use at least one full gallery page of fixtures in an isolated setup.
+
+One load-generator computer shares one internet uplink across all simulated
+guests. Sending 800 MiB takes at least about 67 seconds on a 100 Mbps upload
+connection, or 5.6 minutes at 20 Mbps, before protocol overhead. Record the test
+computer's upload speed and also test venue Wi-Fi/mobile networks before
+attributing long completion times to the backend.
+
+Google's [Cloud Run load-testing guidance](https://docs.cloud.google.com/run/docs/about-load-testing)
+recommends testing incrementally. [Concurrency](https://docs.cloud.google.com/run/docs/about-concurrency)
+is measured in active requests, and all instances share the authorized owner's
+[Drive API quotas](https://developers.google.com/workspace/drive/api/guides/limits).
 
 ## Runtime and API
 
