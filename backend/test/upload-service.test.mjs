@@ -171,6 +171,40 @@ test('one upload lease rejects simultaneous status/chunk operations and releases
   assert.equal((await service.status(body.uploadId, token)).status, 'complete');
 });
 
+test('a slow lease acquisition renews before a long chunk and again before final metadata verification', async () => {
+  const { service, repository, drive, options, advance } = setup();
+  const body = metadata();
+  const { token } = await service.initialize(body, uploadCode);
+  const transaction = repository.transaction.bind(repository);
+  let delayAcquisition = true;
+  repository.transaction = async (...args) => {
+    const result = await transaction(...args);
+    if (delayAcquisition && result?.lease) {
+      delayAcquisition = false;
+      advance(40_000);
+    }
+    return result;
+  };
+  const remainingLease = () => repository.records.get(body.uploadId).lease.until.getTime() - options.now().getTime();
+  drive.beforeChunk = async () => {
+    assert.equal(remainingLease(), 120_000, 'Renew the 80-second remainder before an auth + chunk operation lasting up to 85 seconds');
+    advance(85_000);
+    await assert.rejects(service.status(body.uploadId, token), { status: 429, retryable: true });
+  };
+  const getFile = drive.getFile.bind(drive);
+  drive.getFile = async (fileId) => {
+    assert.equal(remainingLease(), 120_000, 'Final verification must also start with sufficient lock time');
+    advance(45_000);
+    await assert.rejects(service.status(body.uploadId, token), { status: 429, retryable: true });
+    return getFile(fileId);
+  };
+  const result = await complete(service, body, token);
+  assert.equal(result.status, 'complete');
+  assert.equal(drive.calls.chunks, 1);
+  assert.equal(drive.files.size, 1);
+  assert.equal(repository.records.get(body.uploadId).lease, null);
+});
+
 test('expired resumable session resets to zero using the same persisted file ID', async () => {
   const { service, drive, repository } = setup();
   const body = metadata({ size: UPLOAD_CHUNK_BYTES + 1 });

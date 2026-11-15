@@ -1,5 +1,6 @@
 import { DriveError } from './errors.mjs';
 import { googleErrorReason, safeDiagnostic } from './diagnostics.mjs';
+import { DRIVE_CHUNK_TIMEOUT_MS, DRIVE_REQUEST_TIMEOUT_MS } from './upload-timing.mjs';
 
 const API = 'https://www.googleapis.com/drive/v3';
 const UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3/files';
@@ -62,15 +63,17 @@ async function boundedToken(auth, timeoutMs) {
   } finally { clearTimeout(timer); }
 }
 
-export function createDriveProvider({ auth, fetchImpl = globalThis.fetch, timeoutMs = 25000 }) {
-  async function request(operation, url, options = {}) {
+export function createDriveProvider({
+  auth, fetchImpl = globalThis.fetch, timeoutMs = DRIVE_REQUEST_TIMEOUT_MS, chunkTimeoutMs = DRIVE_CHUNK_TIMEOUT_MS,
+}) {
+  async function request(operation, url, options = {}, requestTimeoutMs = timeoutMs) {
     const token = await boundedToken(auth, timeoutMs);
     try {
       return await fetchImpl(url, {
         ...options,
         headers: { ...options.headers, Authorization: `Bearer ${token}` },
         redirect: 'manual',
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: AbortSignal.timeout(requestTimeoutMs),
       });
     } catch (error) {
       throw new DriveError(503, {
@@ -176,7 +179,7 @@ export function createDriveProvider({ auth, fetchImpl = globalThis.fetch, timeou
           'Content-Range': `bytes ${range.start}-${range.end}/${range.total}`,
         },
         body: bytes,
-      });
+      }, chunkTimeoutMs);
       return progress(response, range.total, operation);
     },
   };

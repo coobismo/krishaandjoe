@@ -7,6 +7,17 @@ import { createUploadService } from '../src/upload-service.mjs';
 const sessionUrl = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=private-session-token';
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 const empty = (status, headers) => new Response(null, { status, headers });
+const flush = async () => { for (let index = 0; index < 12; index += 1) await Promise.resolve(); };
+
+function mockDriveClock(t) {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  // AbortSignal.timeout uses a native clock; replace only that clock in tests.
+  t.mock.method(AbortSignal, 'timeout', (milliseconds) => {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(new DOMException('Request timed out', 'TimeoutError')), milliseconds);
+    return controller.signal;
+  });
+}
 
 function providerFor(responses, options = {}) {
   const calls = [];
@@ -116,6 +127,72 @@ test('auth refresh and Google HTTP operations have bounded timeouts', async () =
   const keepAlive = setTimeout(() => {}, 100);
   try { await assert.rejects(networkStall.generateFileId(), { status: 503 }); }
   finally { clearTimeout(keepAlive); }
+});
+
+test('a chunk can succeed after 45 seconds without extending the shorter metadata deadline', async (t) => {
+  mockDriveClock(t);
+  let chunkSignal;
+  let metadataSignal;
+  const { drive } = providerFor([], {
+    fetchImpl: (_url, request) => new Promise((resolve, reject) => {
+      request.signal.addEventListener('abort', () => reject(request.signal.reason), { once: true });
+      if (request.headers['Content-Type'] === 'application/octet-stream') {
+        chunkSignal = request.signal;
+        setTimeout(() => resolve(empty(201)), 45_000);
+      } else metadataSignal = request.signal;
+    }),
+  });
+  const chunk = drive.putChunk(sessionUrl, { start: 0, end: 6, total: 7 }, Buffer.alloc(7));
+  await flush();
+  t.mock.timers.tick(25_001);
+  await flush();
+  assert.equal(chunkSignal.aborted, false, 'The old 25-second chunk deadline must no longer abort the transfer');
+  t.mock.timers.tick(20_000);
+  assert.deepEqual(await chunk, { status: 'complete', uploadedBytes: 7 });
+
+  const metadataFailure = assert.rejects(drive.getFile('file-1'), {
+    status: 503, diagnostics: { upstream: 'drive', operation: 'get_file', reason: 'timeout' },
+  });
+  await flush();
+  t.mock.timers.tick(24_999);
+  assert.equal(metadataSignal.aborted, false);
+  t.mock.timers.tick(1);
+  await metadataFailure;
+  assert.equal(metadataSignal.aborted, true);
+});
+
+test('a stalled chunk aborts at 60 seconds while its OAuth refresh is still bounded to 25 seconds', async (t) => {
+  mockDriveClock(t);
+  let signal;
+  const { drive } = providerFor([], {
+    fetchImpl: (_url, request) => new Promise((_resolve, reject) => {
+      signal = request.signal;
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    }),
+  });
+  const failedChunk = assert.rejects(drive.putChunk(sessionUrl, { start: 0, end: 6, total: 7 }, Buffer.alloc(7)), {
+    status: 503, diagnostics: { upstream: 'drive', operation: 'put_chunk', reason: 'timeout' },
+  });
+  await flush();
+  t.mock.timers.tick(59_999);
+  await flush();
+  assert.equal(signal.aborted, false);
+  t.mock.timers.tick(1);
+  await failedChunk;
+  assert.equal(signal.aborted, true);
+
+  let requests = 0;
+  const { drive: authStall } = providerFor([], {
+    auth: { getAccessToken: () => new Promise(() => {}) },
+    fetchImpl: () => { requests += 1; throw new Error('No upload may start without a token'); },
+  });
+  const failedAuth = assert.rejects(authStall.putChunk(sessionUrl, { start: 0, end: 6, total: 7 }, Buffer.alloc(7)), {
+    status: 503, diagnostics: { upstream: 'oauth', operation: 'refresh_token', reason: 'timeout' },
+  });
+  await flush();
+  t.mock.timers.tick(25_000);
+  await failedAuth;
+  assert.equal(requests, 0);
 });
 
 test('real provider + domain confirms final metadata and does not expose session URL or Google tokens', async () => {

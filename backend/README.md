@@ -44,6 +44,14 @@ Folder-parent metadata is excluded from upload completion checks and transfer
 diagnostic comparisons. Retrying an existing selection can confirm its already committed
 file without re-uploading its bytes.
 
+Drive chunk HTTP requests have a **60-second deadline**; OAuth refresh and
+metadata/status HTTP requests retain their separate **25-second deadlines**.
+The uploader waits up to **180 seconds per API request**, allowing time for a
+slow final chunk and independent metadata verification. The 120-second
+per-file lease is renewed before an operation when less than 100 seconds
+remain, covering the OAuth-plus-chunk budget with a safety margin. A timeout
+still triggers a status check before any resend; it never counts as completion.
+
 ## 1. Create a project and sign in
 
 Create a dedicated [Google Cloud project](https://console.cloud.google.com/projectcreate)
@@ -325,6 +333,27 @@ is measured in active requests, and all instances share the authorized owner's
 [Drive API quotas](https://developers.google.com/workspace/drive/api/guides/limits).
 
 ## Runtime and API
+
+### Diagnose a chunk that fails after 25 seconds
+
+If the matching `upload_request_failed` entry contains
+`upstream: drive`, `operation: put_chunk`, and `reason: timeout`, the backend
+timed out forwarding an already received chunk to Drive. This identifies the
+failed stage; it does not by itself prove a Google outage or explain other
+client connection failures.
+
+Earlier revisions used a 25-second deadline for chunks too. Deploy the updated
+backend to enable the longer chunk deadline and coordinated lease renewal,
+then rebuild and publish the website to enable the uploader's 180-second
+request deadline. The local load-test runner picks up the new client default
+directly from the source. Existing open browser tabs must reload the new site.
+Cloud Run's overall 300-second request timeout does not need changing.
+
+Repeat the same 50-client test after deployment, keeping the file and test
+network the same. Inspect final confirmations and retry/error counts. These
+changes allow slow requests more time; they do not establish 100-guest capacity
+or eliminate unrelated connection failures. See Google's
+[resumable-upload recovery procedure](https://developers.google.com/workspace/drive/api/guides/manage-uploads#resume-upload).
 
 ### Diagnose an upload that fails immediately
 

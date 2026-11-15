@@ -86,7 +86,7 @@ function validateReceipt(receipt, uploadId, size, needsToken = false) {
 }
 
 export async function uploadResumablePhoto(endpoint, { file, uploadId, guestName, mimeType }, options) {
-  const { uploadCode, onProgress, timeoutMs = 120_000, retryBaseMs = 500 } = options;
+  const { uploadCode, onProgress, timeoutMs = 180_000, retryBaseMs = 500 } = options;
   const maxRetries = Math.max(0, Math.min(3, Number.isInteger(options.maxRetries) ? options.maxRetries : 3));
   if (typeof uploadCode !== 'string' || !uploadCode.trim() || /[\r\n]/.test(uploadCode)) {
     throw new RequestError('Photo uploads are not connected yet. Please try again later.', { retryable: false });

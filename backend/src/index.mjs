@@ -8,13 +8,14 @@ import { createUploadServer } from './http-server.mjs';
 import { createGalleryService } from './gallery-service.mjs';
 import { createGalleryRepository } from './gallery-repository.mjs';
 import { createDriveGalleryProvider } from './drive-gallery-provider.mjs';
+import { DRIVE_REQUEST_TIMEOUT_MS } from './upload-timing.mjs';
 
 const config = loadConfig();
 const firestore = new Firestore({ projectId: config.projectId, databaseId: config.databaseId });
 const auth = new OAuth2Client({
   clientId: config.clientId,
   clientSecret: config.clientSecret,
-  transporterOptions: { timeout: 25000 },
+  transporterOptions: { timeout: DRIVE_REQUEST_TIMEOUT_MS },
 });
 auth.setCredentials({ refresh_token: config.refreshToken });
 const service = createUploadService({

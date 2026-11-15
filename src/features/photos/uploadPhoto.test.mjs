@@ -181,6 +181,37 @@ function cloudResponse(body, status = 200, headers = {}) {
   return new Response(JSON.stringify(body), { status, headers });
 }
 
+function fakeRequestClock(t) {
+  let now = 0;
+  let sequence = 0;
+  const timers = new Map();
+  const flush = async () => { for (let index = 0; index < 20; index += 1) await Promise.resolve(); };
+  t.mock.method(globalThis, 'setTimeout', (callback, delay = 0) => {
+    const id = ++sequence;
+    timers.set(id, { callback, at: now + delay });
+    return id;
+  });
+  t.mock.method(globalThis, 'clearTimeout', (id) => timers.delete(id));
+  return {
+    flush,
+    get pending() { return timers.size; },
+    async advance(milliseconds) {
+      const until = now + milliseconds;
+      while (true) {
+        const next = [...timers.entries()].filter(([, timer]) => timer.at <= until).sort((a, b) => a[1].at - b[1].at)[0];
+        if (!next) break;
+        const [id, timer] = next;
+        timers.delete(id);
+        now = timer.at;
+        timer.callback();
+        await flush();
+      }
+      now = until;
+      await flush();
+    },
+  };
+}
+
 test('Cloud Run accepts configurable HTTPS bases and local development only over HTTP', () => {
   for (const url of [cloudEndpoint, `${cloudEndpoint}/`, 'http://localhost:8080', 'http://127.0.0.1:8080', 'http://[::1]:8080']) {
     assert.equal(isUploadEndpoint(url, 'cloud-run'), true, url);
@@ -378,6 +409,63 @@ test('Cloud Run deadlines abort stalled requests and clear successful request ti
   await uploadPhoto(cloudEndpoint, { file: video, uploadId }, { ...cloudOptions, timeoutMs: 5 });
   await new Promise((resolve) => setTimeout(resolve, 10));
   assert.equal(signal.aborted, false);
+});
+
+test('Cloud Run allows a 135-second final PUT and waits for its parsed receipt before confirming', async (t) => {
+  const clock = fakeRequestClock(t);
+  const video = makeVideo();
+  const calls = [];
+  let releaseReceipt;
+  let parses = 0;
+  let outcome;
+  t.mock.method(globalThis, 'fetch', async (url, request) => {
+    calls.push(request);
+    if (request.method === 'POST') return { ok: true, status: 200, json: async () => cloudReceipt(0, 'uploading', { token }) };
+    assert.equal(request.method, 'PUT');
+    return new Promise((resolve) => setTimeout(() => resolve({
+      ok: true, status: 200,
+      json() { parses += 1; return new Promise((finish) => { releaseReceipt = finish; }); },
+    }), 135_000));
+  });
+  const running = uploadPhoto(cloudEndpoint, { file: video, uploadId }, { ...cloudOptions, maxRetries: 0 }).then(
+    (receipt) => { outcome = { receipt }; }, (error) => { outcome = { error }; },
+  );
+  await clock.flush();
+  assert.deepEqual(calls.map((request) => request.method), ['POST', 'PUT']);
+  await clock.advance(120_000);
+  assert.equal(outcome, undefined, 'The old two-minute deadline must not abort a slow successful chunk');
+  assert.equal(calls[1].signal.aborted, false);
+  await clock.advance(15_000);
+  assert.equal(parses, 1);
+  assert.equal(outcome, undefined, 'A successful HTTP status is insufficient until its receipt has been parsed');
+  releaseReceipt(cloudReceipt(video.size, 'complete'));
+  await clock.flush();
+  await running;
+  assert.deepEqual(outcome, { receipt: { ok: true, uploadId } });
+  assert.equal(clock.pending, 0);
+  await clock.advance(180_000);
+  assert.ok(calls.every((request) => !request.signal.aborted), 'Finished request deadlines must be cleared');
+});
+
+test('a slow final PUT with a mismatched receipt is checked with GET before confirmation', async (t) => {
+  const clock = fakeRequestClock(t);
+  const video = makeVideo();
+  const methods = [];
+  t.mock.method(globalThis, 'fetch', async (url, request) => {
+    methods.push(request.method);
+    if (request.method === 'POST') return { ok: true, status: 200, json: async () => cloudReceipt(0, 'uploading', { token }) };
+    if (request.method === 'GET') return { ok: true, status: 200, json: async () => cloudReceipt(video.size, 'complete') };
+    return new Promise((resolve) => setTimeout(() => resolve({
+      ok: true, status: 200,
+      json: async () => cloudReceipt(video.size, 'complete', { uploadId: 'another-upload' }),
+    }), 135_000));
+  });
+  const running = uploadPhoto(cloudEndpoint, { file: video, uploadId }, { ...cloudOptions, maxRetries: 0 });
+  await clock.flush();
+  await clock.advance(135_000);
+  assert.deepEqual(await running, { ok: true, uploadId });
+  assert.deepEqual(methods, ['POST', 'PUT', 'GET'], 'An invalid late receipt must not count as confirmed or cause an unchecked resend');
+  assert.equal(clock.pending, 0);
 });
 
 test('Cloud Run respects Retry-After before retrying a rate-limited request', async (t) => {

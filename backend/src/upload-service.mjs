@@ -2,12 +2,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import { ApiError, DriveError } from './errors.mjs';
 import { createUploadAuth } from './auth.mjs';
 import { safeDiagnostic } from './diagnostics.mjs';
+import { UPLOAD_LEASE_MS, UPLOAD_LEASE_RENEW_BEFORE_MS } from './upload-timing.mjs';
 
 export const UPLOAD_CHUNK_BYTES = 4 * 1024 * 1024;
 export const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
 const DRIVE_CHUNK_UNIT = 256 * 1024;
 const SESSION_MS = 24 * 60 * 60 * 1000;
-const LEASE_MS = 120 * 1000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 export const ALLOWED_MIME_TYPES = new Set([
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif',
@@ -89,7 +89,7 @@ export function createUploadService({ repository, drive, folderId, uploadCode, t
       if (current.lease && current.lease.until.getTime() > timestamp.getTime()) {
         throw new ApiError(429, 'This file is already being processed. Please try again in a moment.', { retryable: true, retryAfter: 2 });
       }
-      const updated = { ...current, updatedAt: timestamp, lease: { owner, until: new Date(timestamp.getTime() + LEASE_MS) } };
+      const updated = { ...current, updatedAt: timestamp, lease: { owner, until: new Date(timestamp.getTime() + UPLOAD_LEASE_MS) } };
       return { record: updated, value: updated };
     });
 
@@ -102,15 +102,15 @@ export function createUploadService({ repository, drive, folderId, uploadCode, t
           }
           checkExpiry(current);
           const timestamp = now();
-          const updated = { ...current, ...changes, updatedAt: timestamp, lease: { owner, until: new Date(timestamp.getTime() + LEASE_MS) } };
+          const updated = { ...current, ...changes, updatedAt: timestamp, lease: { owner, until: new Date(timestamp.getTime() + UPLOAD_LEASE_MS) } };
           return { record: updated, value: updated };
         });
         return record;
       },
       async call(operation) {
-        // Google auth + each HTTP operation are bounded to50 seconds total.
-        // Fresh leases need no extra write for the normal one-chunk request.
-        if (record.lease.until.getTime() - now().getTime() < 60000) await this.save();
+        // Reserve the full auth + chunk deadline and a margin before starting.
+        // Slow chunks and final metadata checks must keep the same lock owner.
+        if (record.lease.until.getTime() - now().getTime() < UPLOAD_LEASE_RENEW_BEFORE_MS) await this.save();
         return operation();
       },
     };
