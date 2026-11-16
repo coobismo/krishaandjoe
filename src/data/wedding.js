@@ -290,7 +290,7 @@ export const GUEST_OPTIONS = ['1', '2', '3', '4', '5', '6', '7', '8'].map((value
 export const RSVP_COPY = {
   eyebrow: 'Kindly respond',
   heading: 'RSVP',
-  intro: 'We’d love to celebrate with you! Please let us know if you’ll be joining us by November 19, 2026.',
+  intro: 'We’d love to celebrate with you! Please let us know if you’ll be joining us.',
   alternate: 'If you prefer, you may also RSVP via text through our coordinator, Choi, at',
   contactNumber: '+63 927 214 7050',
   alternateSuffix: 'Please include your names and that you will be attending Krisha and Joe’s wedding.',
