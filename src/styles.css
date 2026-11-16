@@ -149,7 +149,8 @@ main {
   width: min(600px, calc(100% - 24px));
   max-height: calc(100svh - 28px);
   padding: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   overscroll-behavior: contain;
   border: 1px solid var(--line);
   border-radius: 20px;
@@ -452,6 +453,7 @@ main {
 
 .memoryQueue {
   max-height: 360px;
+  overflow-x: hidden;
   overflow-y: auto;
   padding: 0;
   margin: 12px 0 0;
@@ -464,7 +466,6 @@ main {
   align-items: center;
   gap: 12px;
   padding: 14px 0;
-  border-bottom: 1px solid var(--line);
 }
 
 .memoryPreview {
