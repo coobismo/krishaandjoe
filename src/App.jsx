@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { PasswordGate } from './components/PasswordGate.jsx';
 import { useRsvpForm } from './features/rsvp/useRsvpForm.js';
 import { usePhotoAvailability } from './features/photos/usePhotoAvailability.js';
 import { useCountdown } from './hooks/useCountdown.js';
@@ -36,34 +35,32 @@ export default function App() {
   }
 
   return (
-    <PasswordGate>
-      <main>
-        <Navigation showGuestPhotos={showGuestPhotos} />
-        <Hero countdown={countdown} />
-        <PreWedding />
-        <WeddingDetails
-          onCloseDropdown={closeDropdown}
-          onToggleDropdown={toggleDropdown}
-          openDropdown={openDropdown}
-        />
-        <DressCode />
-        <WebsitePhoto />
-        <GratefulHearts />
-        <Gifts activeCat={activeCat} onSelectCat={setActiveCat} />
-        <RsvpSection
-          form={rsvp.form}
-          isAttending={rsvp.isAttending}
-          onCloseDropdown={closeDropdown}
-          onSubmit={submitRsvp}
-          onToggleDropdown={toggleDropdown}
-          onUpdateField={rsvp.updateField}
-          onUpdateFormValue={rsvp.updateFormValue}
-          openDropdown={openDropdown}
-          submission={rsvp.submission}
-        />
-        <FaqSection />
-        <Footer />
-      </main>
-    </PasswordGate>
+    <main>
+      <Navigation showGuestPhotos={showGuestPhotos} />
+      <Hero countdown={countdown} />
+      <PreWedding />
+      <WeddingDetails
+        onCloseDropdown={closeDropdown}
+        onToggleDropdown={toggleDropdown}
+        openDropdown={openDropdown}
+      />
+      <DressCode />
+      <WebsitePhoto />
+      <GratefulHearts />
+      <Gifts activeCat={activeCat} onSelectCat={setActiveCat} />
+      <RsvpSection
+        form={rsvp.form}
+        isAttending={rsvp.isAttending}
+        onCloseDropdown={closeDropdown}
+        onSubmit={submitRsvp}
+        onToggleDropdown={toggleDropdown}
+        onUpdateField={rsvp.updateField}
+        onUpdateFormValue={rsvp.updateFormValue}
+        openDropdown={openDropdown}
+        submission={rsvp.submission}
+      />
+      <FaqSection />
+      <Footer />
+    </main>
   );
 }

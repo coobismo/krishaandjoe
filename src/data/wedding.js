@@ -17,7 +17,9 @@ export const PHOTO_UPLOAD = {
     (import.meta.env.VITE_PHOTO_UPLOAD_ENDPOINT || '').startsWith('https://script.google.com/')
       ? 'apps-script' : 'cloud-run'
   ),
-  uploadCode: (import.meta.env.VITE_SITE_PASSWORD || '').trim(),
+  // The API code is sent automatically; guests never enter a site password.
+  // Keep the old build setting as a fallback for existing deployments.
+  uploadCode: (import.meta.env.VITE_PHOTO_UPLOAD_CODE || '').trim() || (import.meta.env.VITE_SITE_PASSWORD || '').trim(),
 };
 
 export const HERO = {
@@ -288,7 +290,7 @@ export const GUEST_OPTIONS = ['1', '2', '3', '4', '5', '6', '7', '8'].map((value
 export const RSVP_COPY = {
   eyebrow: 'Kindly respond',
   heading: 'RSVP',
-  intro: 'We’d love to celebrate with you! Please let us know if you’ll be joining us by October 21, 2026.',
+  intro: 'We’d love to celebrate with you! Please let us know if you’ll be joining us by November 19, 2026.',
   alternate: 'If you prefer, you may also RSVP via text through our coordinator, Choi, at',
   contactNumber: '+63 927 214 7050',
   alternateSuffix: 'Please include your names and that you will be attending Krisha and Joe’s wedding.',

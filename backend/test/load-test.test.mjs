@@ -279,7 +279,7 @@ test('CLI dry run calculates a 100-guest queue plan without prompting, networkin
   assert.match(result.stdout, /100 guest queues.*3 files.*300 generated BMP files/);
   assert.match(result.stdout, /Load-test photos appear in the gallery/);
   assert.match(result.stdout, /Dry run complete/);
-  assert.doesNotMatch(result.stdout, /Guest upload password:/);
+  assert.doesNotMatch(result.stdout, /Upload access code:/);
   assert.equal(result.stderr, '');
 });
 
@@ -301,7 +301,7 @@ test('CLI JPEG dry run uses exact source bytes without prompting, networking, co
   assert.match(result.stdout, /Load-test photos appear in the gallery/);
   assert.doesNotMatch(result.stdout, /gallery exclusion|excluded from the.*gallery/i);
   assert.match(result.stdout, /Dry run complete/);
-  assert.doesNotMatch(result.stdout, /Guest upload password:|PRIVATE/);
+  assert.doesNotMatch(result.stdout, /Upload access code:|PRIVATE/);
   assert.equal(result.stderr, '');
 });
 

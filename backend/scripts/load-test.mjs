@@ -15,7 +15,7 @@ async function main() {
   console.log('Load-test photos appear in the gallery with the updated backend. Redeploy the backend before testing gallery behavior.');
   console.log('A real run writes these files into the backend’s configured Drive folder. Use a dedicated test deployment and folder.');
   if (options.dryRun) {
-    console.log('Dry run complete: no password prompt, network requests, or files created.');
+    console.log('Dry run complete: no access-code prompt, network requests, or files created.');
     return;
   }
 
@@ -23,15 +23,15 @@ async function main() {
   let uploadCode;
   try {
     prompts = hiddenPrompts();
-    uploadCode = await prompts.ask('Guest upload password');
+    uploadCode = await prompts.ask('Upload access code');
   } catch (error) {
     const safeMessages = new Set([
       'Run this helper in an interactive terminal to enter credentials privately.',
       'Input cancelled. Run the command again when you are ready.',
     ]);
-    throw new LoadTestError(safeMessages.has(error?.message) ? error.message : 'Could not read the guest password privately. Run this helper again in an interactive terminal.');
+    throw new LoadTestError(safeMessages.has(error?.message) ? error.message : 'Could not read the upload access code privately. Run this helper again in an interactive terminal.');
   } finally { prompts?.close(); }
-  if (!uploadCode) throw new LoadTestError('A guest upload password is required.');
+  if (!uploadCode) throw new LoadTestError('An upload access code is required.');
 
   const photo = source?.photo ?? createLoadTestPhoto(options.megabytes);
   console.log('Starting uploader-protocol test. Browser UI, CORS and gallery traffic are not included.');

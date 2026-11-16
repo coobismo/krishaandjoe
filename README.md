@@ -23,19 +23,19 @@ npm run dev
 
 Then open the local URL shown in your terminal.
 
-## Password gate
+## Website access
 
-The site asks guests for a password before showing any wedding details. Set `VITE_SITE_PASSWORD` anywhere you set `VITE_RSVP_ENDPOINT`.
+The homepage and `/memories` open directly. Guests do not enter a password.
+The old site-unlock value is removed from browser storage when either page opens.
 
-For local development, add it to `.env.local`:
-
-```bash
-VITE_SITE_PASSWORD=your-password-here
-```
-
-For GitHub Pages, add a repository or environment secret named `VITE_SITE_PASSWORD`. The deploy workflow passes it into the build the same way it passes `VITE_RSVP_ENDPOINT`.
-
-If `VITE_SITE_PASSWORD` is not set, the gate stays locked. This is a client-side guest gate for casual privacy on a static site. Use hosting-level authentication if you need stronger protection.
+The uploader and gallery send their API access code automatically. Configure
+`VITE_PHOTO_UPLOAD_CODE` to match the backend's existing `UPLOAD_CODE`; this
+value is part of the static website bundle, rather than a guest sign-in.
+For existing installations, the former `VITE_SITE_PASSWORD` setting remains a
+build-time fallback for that API code. The GitHub Pages workflow prefers the
+new secret and falls back to the existing secret, so the current uploader keeps
+working without a credential migration. Publish the rebuilt website to remove
+the password screen.
 
 ## Project structure
 
@@ -85,8 +85,7 @@ Run `npm test` to check the RSVP POST and redirect flow against local test serve
 ## Guest photo uploads to Google Drive
 
 The uploader and guest gallery are available now at
-**https://krishaandjoe.ph/memories** (with or without a trailing slash), behind
-the usual guest password. An existing guest unlock carries between pages.
+**https://krishaandjoe.ph/memories** (with or without a trailing slash).
 No preview mode or special query parameter is needed. Old preview bookmarks
 redirect to the clean memories route; an upload bookmark opens the upload dialog.
 
@@ -206,8 +205,7 @@ Drive description.
    website. The existing workflow passes it into Vite.
 
 The site shows a “Photo sharing is opening soon” message until a valid endpoint
-is configured. The folder link alone does not activate uploads. The client-side
-password gate does not secure the public upload endpoint; anyone with the
+is configured. The folder link alone does not activate uploads. Anyone with the
 endpoint can submit supported files, using the script owner’s storage and quota.
 There is no need to grant guests editor access to the Drive folder. Files inherit
 the folder’s existing sharing settings; the script never makes them public or
@@ -215,7 +213,7 @@ returns album listings.
 
 ### Verify the deployed connection
 
-Open the website in a signed-out/private browser window, unlock it, choose a
+Open the website in a signed-out/private browser window, choose a
 small photo and upload it. Check both the “Saved to our album” status and the
 actual file in the destination Drive folder. Repeat on a phone with a HEIC photo
 or short MOV clip if those are expected from guests.
@@ -249,5 +247,4 @@ above after deploying the Apps Script.
 - Add final ceremony and reception venue details
 - Add real engagement/prenup photos
 - Add an RSVP deadline
-- Add a password-protected page if needed
 - Replace placeholder text with your final invitation wording

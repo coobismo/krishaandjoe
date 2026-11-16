@@ -16,15 +16,15 @@ try {
   try {
     const clientId = await prompts.ask('OAuth web client ID');
     const clientSecret = await prompts.ask('OAuth web client secret');
-    const uploadCode = await prompts.ask('Guest password (same as VITE_SITE_PASSWORD)');
+    const uploadCode = await prompts.ask('Upload access code (same as VITE_PHOTO_UPLOAD_CODE)');
     if (!clientId.endsWith('.apps.googleusercontent.com') || !clientSecret || !uploadCode) {
-      throw new Error('Enter a valid OAuth client ID, client secret and guest password.');
+      throw new Error('Enter a valid OAuth client ID, client secret and upload access code.');
     }
     console.log('Saving OAuth client ID to Secret Manager…');
     saveSecret(project, 'wedding-drive-client-id', clientId);
     console.log('Saving OAuth client secret…');
     saveSecret(project, 'wedding-drive-client-secret', clientSecret);
-    console.log('Saving guest upload password…');
+    console.log('Saving upload access code…');
     saveSecret(project, 'wedding-upload-code', uploadCode);
     // Preserve this key across redeployments and setup reruns so active upload
     // capabilities stay valid. Only generate it for the first installation.

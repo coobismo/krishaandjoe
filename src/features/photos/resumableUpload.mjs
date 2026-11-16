@@ -14,7 +14,7 @@ class RequestError extends Error {
 }
 
 function responseMessage(status) {
-  if (status === 401 || status === 403) return 'Your guest upload code was not accepted. Please refresh the site and try again.';
+  if (status === 401 || status === 403) return 'Uploads are temporarily unavailable. Please refresh the page and try again.';
   if (status === 410) return 'This upload has expired. Please remove the file, select it again, and retry.';
   if (status === 413) return 'This file is too large to upload. Please choose a smaller photo or video.';
   if (status === 400 || status === 415 || status === 422) return 'This photo or video could not be accepted. Please choose another file.';

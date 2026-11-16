@@ -4,6 +4,8 @@ import App from './App.jsx';
 import { getMemoriesRedirect } from './features/photos/memoriesRoute.mjs';
 import './styles.css';
 
+try { window.localStorage.removeItem('krisha-joe-site-access'); } catch { /* Storage can be unavailable in private browsing. */ }
+
 const memoriesRedirect = getMemoriesRedirect(window.location);
 if (memoriesRedirect) window.location.replace(memoriesRedirect);
 else createRoot(document.getElementById('root')).render(<App />);

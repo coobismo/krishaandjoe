@@ -289,9 +289,9 @@ test('transient checks retain good content and back off; credential failures sto
   await flush();
   await clock.tick(120_000);
   assert.equal(calls.length, 4);
-  calls[3].reject(Object.assign(new Error('Please enter the guest password again.'), { status: 401 }));
+  calls[3].reject(Object.assign(new Error('Please refresh the page and try again.'), { status: 401 }));
   await flush();
-  assert.match(state().error, /guest password/);
+  assert.match(state().error, /refresh the page/);
   assert.equal(clock.timers.size, 0);
   await clock.tick(600_000);
   assert.equal(calls.length, 4);

@@ -361,7 +361,7 @@ test('server rejections do not expose echoed upload codes or capability tokens',
     return cloudResponse({ ok: false, error: `bad guest-code ${token}`, retryable: false }, 401);
   });
   await assert.rejects(uploadPhoto(cloudEndpoint, { file: video, uploadId }, cloudOptions), (error) => {
-    assert.match(error.message, /not accepted/);
+    assert.match(error.message, /Uploads are temporarily unavailable.*refresh the page/);
     assert.ok(!error.message.includes('guest-code') && !error.message.includes(token));
     return true;
   });

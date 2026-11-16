@@ -39,7 +39,7 @@ function validCursor(cursor) {
 function rejectStatus(response, isImage) {
   const status = response.status;
   if ([401, 403].includes(status)) {
-    return new GalleryError('Please refresh the site and enter the guest password again.', 'unauthorized', status);
+    return new GalleryError('The gallery is temporarily unavailable. Please refresh the page and try again.', 'unauthorized', status);
   }
   if (isImage && status === 404) {
     return new GalleryError(`This ${isImage === 'video' ? 'video' : 'photo'} is no longer available.`, 'not-found', status);
@@ -57,7 +57,7 @@ function rejectStatus(response, isImage) {
 async function request(url, { uploadCode, signal, timeoutMs = 30_000 }, read, isImage = false) {
   if (signal?.aborted) throw aborted();
   if (typeof uploadCode !== 'string' || !uploadCode.trim() || /[\r\n]/.test(uploadCode)) {
-    throw new GalleryError('Please refresh the site and enter the guest password again.', 'unauthorized');
+    throw new GalleryError('The gallery is temporarily unavailable. Please refresh the page and try again.', 'unauthorized');
   }
   const controller = new AbortController();
   let timer;

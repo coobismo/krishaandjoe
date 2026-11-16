@@ -122,8 +122,8 @@ References: [OAuth token expiration](https://developers.google.com/identity/prot
 ## 3. Save credentials and authorize Drive
 
 Replace `YOUR_PROJECT_ID` below with your actual project ID. The first helper
-prompts privately for the OAuth client ID, client secret and the existing guest
-password. **Use the same guest password as `VITE_SITE_PASSWORD`.** It generates
+prompts privately for the OAuth client ID, client secret and the API upload
+access code. **Use the same code as `VITE_PHOTO_UPLOAD_CODE`.** It generates
 the separate signing key automatically and preserves that key on later reruns.
 Values are passed to Secret Manager through stdin, without writing credential
 files or printing tokens.
@@ -159,8 +159,8 @@ Secrets created:
 | `wedding-upload-code` | `UPLOAD_CODE` |
 | `wedding-upload-token-secret` | `UPLOAD_TOKEN_SECRET` |
 
-The guest password is a shared invitation code, visible in the existing static
-website bundle. It limits casual public submissions but does not identify
+The API access code is sent automatically by the website and is visible in its
+static bundle. Guests do not enter a password, and this code does not identify
 individual guests. Each initiated upload additionally gets its own signed
 capability. CORS restricts browser origins, rather than authenticating callers.
 
@@ -181,7 +181,7 @@ uploads exclude local dependencies, tests and credentials through `.gcloudignore
 
 The helper creates `wedding-photo-uploads`, sets the configured concurrency and
 instance limits, and prints its HTTPS URL. It pins enabled secret versions for
-the deployment. After refreshing credentials or changing the guest password,
+the deployment. After refreshing credentials or changing the upload access code,
 rerun the deployment helper to select the new versions. IAM changes may take a
 few minutes to propagate; retry if a first build is denied immediately after
 granting the builder role.
@@ -200,10 +200,13 @@ Set these values in `.env.local` for local development:
 ```bash
 VITE_PHOTO_UPLOAD_PROVIDER=cloud-run
 VITE_PHOTO_UPLOAD_ENDPOINT=https://YOUR_UPLOAD_SERVICE.run.app
+VITE_PHOTO_UPLOAD_CODE=your-upload-access-code
 ```
 
-Keep the existing `VITE_SITE_PASSWORD` value and ensure it matches the backend
-upload code. Restart Vite after environment changes. To test localhost, explicitly
+Set `VITE_PHOTO_UPLOAD_CODE` to match the backend upload code. Existing deployments
+can still use `VITE_SITE_PASSWORD` as a compatibility fallback for this API
+configuration; there is no website password screen. Restart Vite after
+environment changes. To test localhost, explicitly
 add its exact origin (for example `http://localhost:5173`) to the backend's
 `ALLOWED_ORIGINS` along with the production origin.
 
@@ -239,7 +242,7 @@ instance limits from those measurements rather than the maximum settings.
 
 The included helper uses the same resumable upload transport as `/memories`.
 Each simulated guest uploads their files sequentially, while all guest queues
-run concurrently. It privately prompts for the guest password, prints progress
+run concurrently. It privately prompts the tester for the upload access code, prints progress
 every five seconds, and reports confirmed files, completed guest queues,
 completion percentiles, throughput and aggregate HTTP response counts. Passwords,
 tokens and provider error bodies are never printed.
@@ -275,7 +278,7 @@ node backend/scripts/load-test.mjs --endpoint https://YOUR_UPLOAD_SERVICE.run.ap
 
 For a local file, `--dry-run` reads its metadata and JPEG header to validate it
 and calculate the total from its actual byte size. It does not read the full
-photo, prompt for a password, make network requests or upload files. A real run
+photo, prompt for the access code, make network requests or upload files. A real run
 reads the photo once and reuses its original bytes for every simulated guest
 and every file in their queue. The local original remains unchanged. Each
 uploaded copy is named `load-test-UUID.jpg` with MIME type `image/jpeg`, even
@@ -462,7 +465,7 @@ expire. Files added directly to Drive outside this uploader are not imported.
 
 The playback authorization response is `{ok, token, expiresAt, mimeType}`.
 The website constructs a URL on the configured backend using that capability;
-the guest password is never placed in a video URL. The capability is scoped to
+the upload access code is never placed in a video URL. The capability is scoped to
 one gallery item and expires after 30 minutes. Every stream request rechecks
 current folder membership, upload identity, size, MIME type and trash status.
 Playback supports a single HTTP `Range` so native browser controls can seek.
@@ -522,7 +525,7 @@ photos evict both cached variants. Browser image responses and fetches use
 sharing settings are preserved.
 
 Uploads and the guest gallery are available now at
-`https://krishaandjoe.ph/memories` behind the usual site password. No preview
+`https://krishaandjoe.ph/memories` with no guest password screen. No preview
 mode is needed; old preview bookmarks redirect to the clean route. The homepage
 Memories link appears on `2026-11-21T00:00:00+08:00`, while direct access already
 works. The backend requires the guest code for gallery reads and uploads.
