@@ -132,7 +132,17 @@ export function PhotoUpload({ onUploadComplete, compact = false, onUploadingChan
                         {formatFileSize(entry.file.size)} · {progress.label}
                       </span>
                       {entry.status === 'uploading' && provider === 'cloud-run' && (
-                        <progress className="memoryProgress" aria-label={`Upload progress for ${entry.file.name}`} aria-valuetext={progress.label} max={100} value={progress.indeterminate ? undefined : progress.percent} />
+                        <div
+                          className="memoryProgress"
+                          role="progressbar"
+                          aria-label={`Upload progress for ${entry.file.name}`}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={progress.indeterminate ? undefined : progress.percent}
+                          aria-valuetext={progress.label}
+                        >
+                          <span className="memoryProgressFill" aria-hidden="true" style={{ width: `${progress.indeterminate ? 0 : progress.percent}%` }} />
+                        </div>
                       )}
                       {entry.error && <span className="memoryFileError">{entry.error}</span>}
                     </div>

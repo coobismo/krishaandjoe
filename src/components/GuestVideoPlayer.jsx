@@ -1,12 +1,15 @@
 import { LoaderCircle, Play, RotateCw, Video } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { fetchGalleryImage, getGalleryPlayback } from '../features/photos/galleryClient.mjs';
+import { getGalleryPlayback } from '../features/photos/galleryClient.mjs';
+import { useGalleryPreview } from '../features/photos/useGalleryPreview.js';
 
 const playbackError = 'We couldn’t play this video. Please try again. Some video formats may need a different browser.';
 
 export function GuestVideoPlayer({ endpoint, uploadCode, photo, onUnavailable }) {
   const video = useRef(null);
-  const [poster, setPoster] = useState('');
+  const { url: posterUrl, retry: retryPoster } = useGalleryPreview({ endpoint, uploadCode, photo, variant: 'preview', onUnavailable });
+  const [posterFailed, setPosterFailed] = useState(false);
+  const poster = posterFailed ? '' : posterUrl;
   const [playback, setPlayback] = useState(null);
   const [isPreparing, setIsPreparing] = useState(true);
   const [isStarted, setIsStarted] = useState(false);
@@ -14,27 +17,16 @@ export function GuestVideoPlayer({ endpoint, uploadCode, photo, onUnavailable })
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
 
+  useEffect(() => setPosterFailed(false), [posterUrl]);
+
   useEffect(() => {
     const controller = new AbortController();
     const media = video.current;
-    let posterUrl;
-    setPoster('');
     setPlayback(null);
     setIsPreparing(true);
     setIsStarted(false);
     setIsBuffering(false);
     setError('');
-
-    // A missing thumbnail must not prevent an otherwise playable recording.
-    fetchGalleryImage(endpoint, photo.id, { uploadCode, variant: 'preview', signal: controller.signal })
-      .then((blob) => {
-        if (controller.signal.aborted) return;
-        posterUrl = URL.createObjectURL(blob);
-        setPoster(posterUrl);
-      })
-      .catch((failure) => {
-        if (!controller.signal.aborted && failure.status === 404) onUnavailable?.(photo.id);
-      });
 
     // Prepare authorization before the click so play() keeps browser activation.
     // The native player streams the original only when the guest presses Play.
@@ -53,7 +45,6 @@ export function GuestVideoPlayer({ endpoint, uploadCode, photo, onUnavailable })
 
     return () => {
       controller.abort();
-      if (posterUrl) URL.revokeObjectURL(posterUrl);
       // Release the native stream when closing, retrying, or changing memories.
       media?.pause();
       media?.removeAttribute('src');
@@ -91,7 +82,7 @@ export function GuestVideoPlayer({ endpoint, uploadCode, photo, onUnavailable })
   return (
     <div className="guestVideoPlayer">
       {!isStarted && (poster
-        ? <img className="guestVideoPoster" src={poster} alt="A wedding video shared by a guest" onError={() => setPoster('')} />
+        ? <img className="guestVideoPoster" src={poster} alt="A wedding video shared by a guest" onError={() => setPosterFailed(true)} />
         : <div className="guestPhotoPlaceholder"><Video size={40} strokeWidth={1.3} aria-hidden="true" /></div>)}
       <video
         className="guestVideoMedia"
@@ -115,7 +106,7 @@ export function GuestVideoPlayer({ endpoint, uploadCode, photo, onUnavailable })
         {isPreparing ? <LoaderCircle className="memorySpinner" size={29} aria-hidden="true" /> : <Play size={31} fill="currentColor" aria-hidden="true" />}
       </button>}
       {isBuffering && isStarted && <span className="guestVideoBuffering" role="status"><LoaderCircle className="memorySpinner" size={28} aria-hidden="true" /><span className="srOnly">Loading video…</span></span>}
-      {error && <div className="guestVideoError" role="alert"><p>{error}</p><button className="button secondary" onClick={() => setAttempt((current) => current + 1)} type="button"><RotateCw size={16} aria-hidden="true" /> Try again</button></div>}
+      {error && <div className="guestVideoError" role="alert"><p>{error}</p><button className="button secondary" onClick={() => { retryPoster(); setAttempt((current) => current + 1); }} type="button"><RotateCw size={16} aria-hidden="true" /> Try again</button></div>}
     </div>
   );
 }

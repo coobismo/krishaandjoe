@@ -520,28 +520,18 @@ main {
   border: 0;
   border-radius: 999px;
   background: var(--blue-soft);
-  accent-color: var(--blue);
 }
 
-.memoryProgress::-webkit-progress-bar {
-  background: var(--blue-soft);
-}
-
-.memoryProgress::-webkit-progress-value {
-  background: var(--blue);
-  border-radius: 999px;
-  transition: width 160ms linear;
-}
-
-.memoryProgress::-moz-progress-bar {
+.memoryProgressFill {
+  display: block;
+  height: 100%;
   background: var(--blue);
   border-radius: 999px;
   transition: width 160ms linear;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .memoryProgress::-webkit-progress-value { transition: none; }
-  .memoryProgress::-moz-progress-bar { transition: none; }
+  .memoryProgressFill { transition: none; }
 }
 
 .memoryRemove {

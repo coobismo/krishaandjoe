@@ -134,7 +134,10 @@ Gallery requests use the existing guest code. The backend serves private image
 previews without changing Drive sharing or exposing owner OAuth credentials.
 Newly uploaded HEIC and TIFF photos rely on Drive's preview generation; a retry
 is available while a preview is being prepared. Video thumbnails also depend on
-Drive processing. Playback remains available when a thumbnail is not ready.
+Drive processing. Pending video previews retry automatically in both the grid
+and the viewer until ready, with delays capped at one minute. Retries pause
+while the page is hidden or offline and stop after success, authentication
+failure, or file removal. Playback remains available when a thumbnail is not ready.
 Video codec support depends on the guest's browser; unsupported videos show a
 helpful message. Originals are preserved and are not transcoded.
 
@@ -148,7 +151,8 @@ across guests, confirmed byte progress and retries without restarting the file.
 The destination remains the same wedding Drive folder.
 
 In the browser, the progress bar follows bytes sent to the upload backend,
-including movement within a chunk. Preparation has an indeterminate indicator;
+including movement within a chunk. Preparation shows a static empty track and
+a status label, without the browser's flashing indeterminate bar;
 after sending, the status changes to “Saving to our album…” while the backend
 finishes. Displayed progress stays below 100% until the completed file has been
 verified. Connection recovery resets provisional progress to the confirmed
