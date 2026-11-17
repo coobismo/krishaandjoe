@@ -176,6 +176,63 @@ test('a failed resize falls back to the original link, while query strings remai
   assert.equal(fixture.calls[2].url, signed);
 });
 
+test('failed thumbnail candidates preserve the final safe Google status and reason behind a retryable 503 response', async () => {
+  for (const [status, reason] of [[403, 'insufficientPermissions'], [429, 'rateLimitExceeded']]) {
+    const fixture = provider([
+      json({ error: { errors: [{ reason: 'forbidden' }] } }, 403),
+      json({ error: {
+        message: `${thumbUrl} file-1 server-secret-token PRIVATE_PROVIDER_BODY`,
+        errors: [{ reason }],
+      } }, status),
+    ]);
+    await assert.rejects(fixture.drive.thumbnail(file({ mimeType: 'video/mp4' })), (error) => {
+      assert.equal(error.status, 503);
+      assert.equal(error.retryable, true);
+      assert.equal(error.retryAfter, 3);
+      assert.deepEqual(error.diagnostics, { upstream: 'drive', operation: 'get_thumbnail', reason, upstreamStatus: status });
+      assert.doesNotMatch(`${error.message} ${JSON.stringify(error)}`, /PRIVATE_PROVIDER_BODY|server-secret-token|private-token|file-1|https:/);
+      return true;
+    });
+    assert.equal(fixture.calls.length, 2);
+    assert.equal(fixture.calls[1].url, thumbUrl);
+  }
+});
+
+test('a final thumbnail timeout keeps its safe reason without leaking the request or credentials', async () => {
+  const fixture = provider([
+    json({ error: { errors: [{ reason: 'forbidden' }] } }, 403),
+    () => { throw new DOMException(`${thumbUrl} file-1 server-secret-token`, 'TimeoutError'); },
+  ]);
+  await assert.rejects(fixture.drive.thumbnail(file({ mimeType: 'video/mp4' })), (error) => {
+    assert.equal(error.status, 503);
+    assert.equal(error.retryable, true);
+    assert.deepEqual(error.diagnostics, { upstream: 'drive', operation: 'get_thumbnail', reason: 'timeout' });
+    assert.doesNotMatch(`${error.message} ${JSON.stringify(error)}`, /server-secret-token|private-token|file-1|https:/);
+    return true;
+  });
+  assert.equal(fixture.calls.length, 2);
+});
+
+test('bounded original-image fallback still succeeds and its failure takes precedence over thumbnail failures', async () => {
+  for (const succeeds of [true, false]) {
+    const fixture = provider([
+      json({ error: { errors: [{ reason: 'forbidden' }] } }, 403),
+      json({ error: { errors: [{ reason: 'insufficientPermissions' }] } }, 403),
+      succeeds ? image(Buffer.from('original')) : json({ error: { errors: [{ reason: 'rateLimitExceeded' }] } }, 429),
+    ]);
+    const result = fixture.drive.thumbnail(file({ mimeType: 'image/jpeg', size: '8' }));
+    if (succeeds) assert.equal((await result).bytes.toString(), 'original');
+    else await assert.rejects(result, (error) => {
+      assert.equal(error.status, 503);
+      assert.equal(error.retryable, true);
+      assert.deepEqual(error.diagnostics, { upstream: 'drive', operation: 'get_thumbnail', reason: 'rateLimitExceeded', upstreamStatus: 429 });
+      return true;
+    });
+    assert.equal(fixture.calls.length, 3);
+    assert.equal(fixture.calls[2].url, 'https://www.googleapis.com/drive/v3/files/file-1?alt=media&supportsAllDrives=true');
+  }
+});
+
 test('unsafe thumbnail links are rejected before token access or any network request', async () => {
   const fixture = provider();
   for (const thumbnailLink of [
@@ -223,7 +280,12 @@ test('small JPEG/PNG without thumbnails may use bounded alt=media; large or HEIC
   assert.equal(result.contentType, 'image/png');
   assert.equal(fixture.calls[0].url, 'https://www.googleapis.com/drive/v3/files/file-1?alt=media&supportsAllDrives=true');
   for (const metadata of [file({ thumbnailLink: undefined }), file({ thumbnailLink: undefined, mimeType: 'image/jpeg', size: '8388609' })]) {
-    await assert.rejects(fixture.drive.thumbnail(metadata), { status: 503, retryable: true });
+    await assert.rejects(fixture.drive.thumbnail(metadata), (error) => {
+      assert.equal(error.status, 503);
+      assert.equal(error.retryable, true);
+      assert.deepEqual(error.diagnostics, { upstream: 'drive', operation: 'get_thumbnail', reason: 'unknown' });
+      return true;
+    });
   }
   assert.equal(fixture.calls.length, 1);
 });

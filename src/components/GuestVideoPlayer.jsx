@@ -5,14 +5,18 @@ import { useGalleryPreview } from '../features/photos/useGalleryPreview.js';
 
 const playbackError = 'We couldn’t play this video. Please try again. Some video formats may need a different browser.';
 
-export function GuestVideoPlayer({ endpoint, uploadCode, photo, onUnavailable }) {
+export function GuestVideoPlayer({ endpoint, uploadCode, photo, initialPoster = '', onUnavailable }) {
   const video = useRef(null);
-  const { url: posterUrl, retry: retryPoster } = useGalleryPreview({ endpoint, uploadCode, photo, variant: 'preview', onUnavailable });
   const [posterFailed, setPosterFailed] = useState(false);
-  const poster = posterFailed ? '' : posterUrl;
+  const [loadPoster, setLoadPoster] = useState(!initialPoster);
+  const { url: posterUrl, retry: retryPoster } = useGalleryPreview({
+    endpoint, uploadCode, photo, variant: 'thumbnail', enabled: loadPoster, onUnavailable,
+  });
+  const poster = posterFailed ? '' : posterUrl || initialPoster;
   const [playback, setPlayback] = useState(null);
   const [isPreparing, setIsPreparing] = useState(true);
   const [isStarted, setIsStarted] = useState(false);
+  const [hasPlayed, setHasPlayed] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -25,11 +29,12 @@ export function GuestVideoPlayer({ endpoint, uploadCode, photo, onUnavailable })
     setPlayback(null);
     setIsPreparing(true);
     setIsStarted(false);
+    setHasPlayed(false);
     setIsBuffering(false);
     setError('');
 
-    // Prepare authorization before the click so play() keeps browser activation.
-    // The native player streams the original only when the guest presses Play.
+    // Prepare authorization and metadata while this one viewer is open, so a
+    // Play click can start sooner without loading full videos into memory.
     getGalleryPlayback(endpoint, photo.id, { uploadCode, signal: controller.signal })
       .then((ticket) => {
         if (controller.signal.aborted) return;
@@ -56,6 +61,7 @@ export function GuestVideoPlayer({ endpoint, uploadCode, photo, onUnavailable })
     if (!video.current?.getAttribute('src')) return;
     video.current.pause();
     setIsStarted(false);
+    setHasPlayed(false);
     setIsBuffering(false);
     setError(playbackError);
   }
@@ -75,28 +81,33 @@ export function GuestVideoPlayer({ endpoint, uploadCode, photo, onUnavailable })
       media.hidden = false;
       media.controls = true;
       const started = media.play();
-      started?.catch(failPlayback);
+      started?.catch((failure) => {
+        if (video.current !== media || !media.getAttribute('src')) return;
+        if (failure?.name === 'AbortError') {
+          setIsStarted(false);
+          setIsBuffering(false);
+        } else failPlayback();
+      });
     } catch { failPlayback(); }
   }
 
   return (
     <div className="guestVideoPlayer">
-      {!isStarted && (poster
-        ? <img className="guestVideoPoster" src={poster} alt="A wedding video shared by a guest" onError={() => setPosterFailed(true)} />
+      {!hasPlayed && (poster
+        ? <img className="guestVideoPoster" src={poster} alt="A wedding video shared by a guest" onError={() => { setPosterFailed(true); setLoadPoster(true); }} />
         : <div className="guestPhotoPlaceholder"><Video size={40} strokeWidth={1.3} aria-hidden="true" /></div>)}
       <video
-        className="guestVideoMedia"
+        className={`guestVideoMedia${!hasPlayed ? ' isStarting' : ''}`}
         controls={isStarted}
         crossOrigin="anonymous"
         hidden={!isStarted}
         onError={failPlayback}
-        onLoadedData={() => setIsBuffering(false)}
-        onPause={() => setIsBuffering(false)}
-        onPlaying={() => setIsBuffering(false)}
+        onPause={() => { setIsBuffering(false); if (!hasPlayed) setIsStarted(false); }}
+        onPlaying={() => { setHasPlayed(true); setIsBuffering(false); }}
         onWaiting={() => setIsBuffering(true)}
         playsInline
         poster={poster || undefined}
-        preload="none"
+        preload="metadata"
         ref={video}
         src={playback?.url}
       >

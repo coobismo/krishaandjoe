@@ -58,7 +58,7 @@ function PhotoLightbox({ photos, selected, onSelect, onClose, onUnavailable, ret
         </header>
         <div className="guestLightboxMedia">
           {isGalleryVideo(selected)
-            ? <GuestVideoPlayer key={selected.id} endpoint={PHOTO_UPLOAD.endpoint} uploadCode={PHOTO_UPLOAD.uploadCode} photo={selected} onUnavailable={onUnavailable} />
+            ? <GuestVideoPlayer key={selected.id} endpoint={PHOTO_UPLOAD.endpoint} uploadCode={PHOTO_UPLOAD.uploadCode} photo={selected} initialPoster={selected.thumbnailUrl} onUnavailable={onUnavailable} />
             : <GuestPhotoImage key={selected.id} endpoint={PHOTO_UPLOAD.endpoint} uploadCode={PHOTO_UPLOAD.uploadCode} photo={selected} variant="preview" onUnavailable={onUnavailable} />}
         </div>
         <footer className="guestLightboxFooter">
@@ -77,8 +77,17 @@ export function GuestGallery({ refreshKey = 0, onAddMemory }) {
   const [selected, setSelected] = useState(null);
   const gallery = useGuestGallery({ endpoint, uploadCode, enabled, refreshKey, autoRefreshPaused: Boolean(selected) });
   const galleryHeading = useRef(null);
+  const previewUrls = useRef(new Map());
+  const handlePreviewReady = useCallback((photoId, url) => {
+    if (url) previewUrls.current.set(photoId, url);
+    else previewUrls.current.delete(photoId);
+  }, []);
+  const selectMemory = useCallback((photo) => {
+    setSelected({ ...photo, thumbnailUrl: previewUrls.current.get(photo.id) || '' });
+  }, []);
   const closeLightbox = useCallback(() => setSelected(null), []);
   const handleUnavailable = useCallback((photoId) => {
+    previewUrls.current.delete(photoId);
     gallery.removePhoto(photoId);
     setSelected((current) => current?.id === photoId ? null : current);
   }, [gallery.removePhoto]);
@@ -103,8 +112,8 @@ export function GuestGallery({ refreshKey = 0, onAddMemory }) {
         {gallery.photos.length > 0 && <div className="guestPhotoGrid">
           {gallery.photos.map((photo, index) => (
             <figure className="guestPhotoCard" key={photo.id}>
-              <button aria-label={`Open guest ${isGalleryVideo(photo) ? 'video' : 'photo'} ${index + 1}`} aria-haspopup="dialog" type="button" onClick={() => setSelected(photo)}>
-                <GuestPhotoImage endpoint={endpoint} uploadCode={uploadCode} photo={photo} onUnavailable={handleUnavailable} />
+              <button aria-label={`Open guest ${isGalleryVideo(photo) ? 'video' : 'photo'} ${index + 1}`} aria-haspopup="dialog" type="button" onClick={() => selectMemory(photo)}>
+                <GuestPhotoImage endpoint={endpoint} uploadCode={uploadCode} photo={photo} onUnavailable={handleUnavailable} onPreviewReady={handlePreviewReady} />
                 {isGalleryVideo(photo) && <span className="guestVideoBadge" aria-hidden="true"><Play size={23} fill="currentColor" /></span>}
               </button>
               <figcaption><span className="guestPhotoAttribution">{sharedBy(photo)}</span></figcaption>
@@ -113,7 +122,7 @@ export function GuestGallery({ refreshKey = 0, onAddMemory }) {
         </div>}
         {gallery.nextCursor && <div className="guestGalleryMore"><button className="button secondary memoryChoose" disabled={gallery.isLoading || gallery.isLoadingMore} onClick={gallery.loadMore} type="button">{gallery.isLoadingMore && <LoaderCircle className="memorySpinner" size={17} aria-hidden="true" />} {gallery.isLoadingMore ? 'Loading memories…' : 'More memories'}</button></div>}
       </div>
-      {selected && <PhotoLightbox photos={gallery.photos} selected={selected} onSelect={setSelected} onClose={closeLightbox} onUnavailable={handleUnavailable} returnFocusRef={galleryHeading} />}
+      {selected && <PhotoLightbox photos={gallery.photos} selected={selected} onSelect={selectMemory} onClose={closeLightbox} onUnavailable={handleUnavailable} returnFocusRef={galleryHeading} />}
     </section>
   );
 }

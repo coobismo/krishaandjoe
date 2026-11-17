@@ -119,6 +119,13 @@ instead of downloading the entire video into browser memory. Closing the viewer
 or moving to another memory stops playback. Photos and videos keep their aspect
 ratio within the browser viewport, including short and narrow windows.
 
+The video viewer reuses its loaded gallery thumbnail immediately. If that image
+is still loading, it requests the same thumbnail variant so the backend can share
+the pending request or cached result. Only the open video's metadata is preloaded;
+playback starts after pressing Play. The thumbnail stays visible until playback
+begins, and both layers use the same bounds to avoid a blank flash or size jump
+while buffering.
+
 The gallery checks for new memories
 about every 30 seconds while the page is visible and online, preserving photos
 already loaded. Automatic checks pause while a photo is open and resume when

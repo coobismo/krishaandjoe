@@ -11,10 +11,10 @@ const MAX_GRID_ORIGINAL_BYTES = 1024 * 1024;
 const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
 const IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
 
-function preparing(reason = 'unknown') {
+function preparing(reason = 'unknown', diagnostics) {
   return new ApiError(503, 'Preview is being prepared. Please try again in a moment.', {
     retryable: true, retryAfter: 3,
-    diagnostics: { upstream: 'drive', operation: 'get_thumbnail', reason },
+    diagnostics: diagnostics ?? { upstream: 'drive', operation: 'get_thumbnail', reason },
   });
 }
 
@@ -268,15 +268,20 @@ export function createDriveGalleryProvider({ auth, fetchImpl = globalThis.fetch,
         && Number.isSafeInteger(Number(metadata.size)) && Number(metadata.size) > 0 && Number(metadata.size) <= originalLimit;
       if (!candidates.length && !canUseOriginal) throw preparing();
       const accessToken = await token();
+      let lastFailure;
       for (const url of candidates) {
         try { return await imageFrom(url, accessToken); }
-        catch { /* A resized thumbnail can be unavailable; retry its original. */ }
+        catch (error) {
+          // A resized thumbnail can be unavailable; retry its original while
+          // retaining only allowlisted diagnostics if every candidate fails.
+          lastFailure = safeDiagnostic(error);
+        }
       }
       if (canUseOriginal) {
         try { return await imageFrom(`${API}/${metadata.id}?alt=media&supportsAllDrives=true`, accessToken, originalLimit); }
-        catch { /* Original reads are also bounded, and only small JPEG/PNG. */ }
+        catch (error) { lastFailure = safeDiagnostic(error); }
       }
-      throw preparing();
+      throw preparing('unknown', lastFailure);
     },
   };
 }

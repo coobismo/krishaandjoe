@@ -3,9 +3,10 @@ import { useEffect, useRef, useState } from 'react';
 import { isGalleryVideo } from '../features/photos/galleryMedia.mjs';
 import { useGalleryPreview } from '../features/photos/useGalleryPreview.js';
 
-export function GuestPhotoImage({ endpoint, uploadCode, photo, variant = 'thumbnail', onUnavailable }) {
+export function GuestPhotoImage({ endpoint, uploadCode, photo, variant = 'thumbnail', onUnavailable, onPreviewReady }) {
   const isVideo = isGalleryVideo(photo);
   const element = useRef(null);
+  const decodedPreview = useRef('');
   const [isVisible, setIsVisible] = useState(variant === 'preview');
   const [decodeError, setDecodeError] = useState('');
   const { url, error: requestError, retry } = useGalleryPreview({
@@ -14,6 +15,11 @@ export function GuestPhotoImage({ endpoint, uploadCode, photo, variant = 'thumbn
   const error = requestError || decodeError;
 
   useEffect(() => setDecodeError(''), [url]);
+
+  useEffect(() => {
+    onPreviewReady?.(photo.id, url && !error && decodedPreview.current === url ? url : '');
+    return () => onPreviewReady?.(photo.id, '');
+  }, [photo.id, url, error, onPreviewReady]);
 
   useEffect(() => {
     if (isVisible) return;
@@ -31,7 +37,17 @@ export function GuestPhotoImage({ endpoint, uploadCode, photo, variant = 'thumbn
   return (
     <div className={`guestPhotoImage guestPhotoImage-${variant}`} ref={element}>
       {url && !error ? (
-        <img alt={variant === 'preview' ? 'A wedding moment shared by a guest' : ''} src={url} decoding="async" onError={() => setDecodeError('This preview could not be displayed. Please try again.')} />
+        <img
+          alt={variant === 'preview' ? 'A wedding moment shared by a guest' : ''}
+          src={url}
+          decoding="async"
+          onLoad={() => { decodedPreview.current = url; onPreviewReady?.(photo.id, url); }}
+          onError={() => {
+            decodedPreview.current = '';
+            onPreviewReady?.(photo.id, '');
+            setDecodeError('This preview could not be displayed. Please try again.');
+          }}
+        />
       ) : error ? (
         <div className="guestPhotoPlaceholder">
           {isVideo ? <Video size={26} strokeWidth={1.4} aria-hidden="true" /> : <Image size={26} strokeWidth={1.4} aria-hidden="true" />}
