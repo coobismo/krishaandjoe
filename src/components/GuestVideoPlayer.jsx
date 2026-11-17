@@ -7,6 +7,8 @@ const playbackError = 'We couldn’t play this video. Please try again. Some vid
 
 export function GuestVideoPlayer({ endpoint, uploadCode, photo, initialPoster = '', onUnavailable }) {
   const video = useRef(null);
+  const unavailable = useRef(onUnavailable);
+  unavailable.current = onUnavailable;
   const [posterFailed, setPosterFailed] = useState(false);
   const [loadPoster, setLoadPoster] = useState(!initialPoster);
   const { url: posterUrl, retry: retryPoster } = useGalleryPreview({
@@ -33,8 +35,8 @@ export function GuestVideoPlayer({ endpoint, uploadCode, photo, initialPoster = 
     setIsBuffering(false);
     setError('');
 
-    // Prepare authorization and metadata while this one viewer is open, so a
-    // Play click can start sooner without loading full videos into memory.
+    // Authorize once and let this one open video's native player keep buffering.
+    // UI updates and callback changes must not tear down its existing stream.
     getGalleryPlayback(endpoint, photo.id, { uploadCode, signal: controller.signal })
       .then((ticket) => {
         if (controller.signal.aborted) return;
@@ -43,7 +45,7 @@ export function GuestVideoPlayer({ endpoint, uploadCode, photo, initialPoster = 
       })
       .catch((failure) => {
         if (controller.signal.aborted) return;
-        if (failure.status === 404) onUnavailable?.(photo.id);
+        if (failure.status === 404) unavailable.current?.(photo.id);
         setError(failure.message || 'We couldn’t prepare this video. Please try again.');
         setIsPreparing(false);
       });
@@ -55,7 +57,7 @@ export function GuestVideoPlayer({ endpoint, uploadCode, photo, initialPoster = 
       media?.removeAttribute('src');
       media?.load();
     };
-  }, [endpoint, uploadCode, photo.id, onUnavailable, attempt]);
+  }, [endpoint, uploadCode, photo.id, attempt]);
 
   function failPlayback() {
     if (!video.current?.getAttribute('src')) return;
@@ -77,9 +79,8 @@ export function GuestVideoPlayer({ endpoint, uploadCode, photo, initialPoster = 
     setIsBuffering(true);
     try {
       const media = video.current;
-      // Reveal the already-authorized element within this same user gesture.
-      media.hidden = false;
-      media.controls = true;
+      // Keep the same source, element and controls through buffering/resume.
+      // Calling play directly preserves the browser's user-gesture permission.
       const started = media.play();
       started?.catch((failure) => {
         if (video.current !== media || !media.getAttribute('src')) return;
@@ -97,19 +98,19 @@ export function GuestVideoPlayer({ endpoint, uploadCode, photo, initialPoster = 
         ? <img className="guestVideoPoster" src={poster} alt="A wedding video shared by a guest" onError={() => { setPosterFailed(true); setLoadPoster(true); }} />
         : <div className="guestPhotoPlaceholder"><Video size={40} strokeWidth={1.3} aria-hidden="true" /></div>)}
       <video
+        aria-hidden={!hasPlayed}
         className={`guestVideoMedia${!hasPlayed ? ' isStarting' : ''}`}
-        controls={isStarted}
+        controls
         crossOrigin="anonymous"
-        hidden={!isStarted}
         onError={failPlayback}
         onPause={() => { setIsBuffering(false); if (!hasPlayed) setIsStarted(false); }}
         onPlaying={() => { setHasPlayed(true); setIsBuffering(false); }}
         onWaiting={() => setIsBuffering(true)}
         playsInline
-        poster={poster || undefined}
-        preload="metadata"
+        preload="auto"
         ref={video}
         src={playback?.url}
+        tabIndex={hasPlayed ? 0 : -1}
       >
         Your browser does not support video playback.
       </video>

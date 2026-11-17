@@ -13,5 +13,7 @@
     "react-dom": "latest",
     "lucide-react": "latest"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "linkedom": "^0.18.15"
+  }
 }

@@ -121,10 +121,12 @@ ratio within the browser viewport, including short and narrow windows.
 
 The video viewer reuses its loaded gallery thumbnail immediately. If that image
 is still loading, it requests the same thumbnail variant so the backend can share
-the pending request or cached result. Only the open video's metadata is preloaded;
-playback starts after pressing Play. The thumbnail stays visible until playback
-begins, and both layers use the same bounds to avoid a blank flash or size jump
-while buffering.
+the pending request or cached result. The open video uses native automatic
+buffering instead of stopping after its metadata; playback starts after pressing
+Play. Its source, element and native controls stay in place while buffering and
+resuming. Only the open video is preloaded, and closing it cancels the stream.
+The thumbnail stays visible until playback begins, and both layers use the same
+bounds to avoid a blank flash or size jump while buffering.
 
 The gallery checks for new memories
 about every 30 seconds while the page is visible and online, preserving photos
