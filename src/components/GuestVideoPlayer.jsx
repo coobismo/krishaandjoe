@@ -4,9 +4,11 @@ import { getGalleryPlayback } from '../features/photos/galleryClient.mjs';
 import { useGalleryPreview } from '../features/photos/useGalleryPreview.js';
 
 const playbackError = 'We couldn’t play this video. Please try again. Some video formats may need a different browser.';
+const BUFFERING_DELAY_MS = 500;
 
 export function GuestVideoPlayer({ endpoint, uploadCode, photo, initialPoster = '', onUnavailable }) {
   const video = useRef(null);
+  const bufferingTimer = useRef(null);
   const unavailable = useRef(onUnavailable);
   unavailable.current = onUnavailable;
   const [posterFailed, setPosterFailed] = useState(false);
@@ -52,6 +54,7 @@ export function GuestVideoPlayer({ endpoint, uploadCode, photo, initialPoster = 
 
     return () => {
       controller.abort();
+      clearBuffering();
       // Release the native stream when closing, retrying, or changing memories.
       media?.pause();
       media?.removeAttribute('src');
@@ -59,12 +62,37 @@ export function GuestVideoPlayer({ endpoint, uploadCode, photo, initialPoster = 
     };
   }, [endpoint, uploadCode, photo.id, attempt]);
 
+  function clearBuffering() {
+    if (bufferingTimer.current !== null) clearTimeout(bufferingTimer.current);
+    bufferingTimer.current = null;
+    setIsBuffering(false);
+  }
+
+  function markBuffering() {
+    const media = video.current;
+    if (!media || media.paused || media.ended || media.readyState >= 3) {
+      clearBuffering();
+      return;
+    }
+    if (bufferingTimer.current !== null || isBuffering) return;
+    // Brief native waiting events are common during startup and seeking. Show
+    // our overlay only if this same player is still genuinely short of data.
+    bufferingTimer.current = setTimeout(() => {
+      bufferingTimer.current = null;
+      setIsBuffering(video.current === media && !media.paused && !media.ended && media.readyState < 3);
+    }, BUFFERING_DELAY_MS);
+  }
+
+  function checkBuffered() {
+    if (video.current?.readyState >= 3) clearBuffering();
+  }
+
   function failPlayback() {
     if (!video.current?.getAttribute('src')) return;
     video.current.pause();
     setIsStarted(false);
     setHasPlayed(false);
-    setIsBuffering(false);
+    clearBuffering();
     setError(playbackError);
   }
 
@@ -76,17 +104,17 @@ export function GuestVideoPlayer({ endpoint, uploadCode, photo, initialPoster = 
     }
     setError('');
     setIsStarted(true);
-    setIsBuffering(true);
     try {
       const media = video.current;
       // Keep the same source, element and controls through buffering/resume.
       // Calling play directly preserves the browser's user-gesture permission.
       const started = media.play();
+      markBuffering();
       started?.catch((failure) => {
-        if (video.current !== media || !media.getAttribute('src')) return;
+        if (video.current !== media || media.getAttribute('src') !== playback.url) return;
         if (failure?.name === 'AbortError') {
           setIsStarted(false);
-          setIsBuffering(false);
+          clearBuffering();
         } else failPlayback();
       });
     } catch { failPlayback(); }
@@ -102,10 +130,13 @@ export function GuestVideoPlayer({ endpoint, uploadCode, photo, initialPoster = 
         className={`guestVideoMedia${!hasPlayed ? ' isStarting' : ''}`}
         controls
         crossOrigin="anonymous"
+        onCanPlay={checkBuffered}
+        onEnded={clearBuffering}
         onError={failPlayback}
-        onPause={() => { setIsBuffering(false); if (!hasPlayed) setIsStarted(false); }}
-        onPlaying={() => { setHasPlayed(true); setIsBuffering(false); }}
-        onWaiting={() => setIsBuffering(true)}
+        onPause={() => { clearBuffering(); if (!hasPlayed) setIsStarted(false); }}
+        onPlaying={() => { setHasPlayed(true); clearBuffering(); }}
+        onProgress={checkBuffered}
+        onWaiting={markBuffering}
         playsInline
         preload="auto"
         ref={video}
@@ -117,7 +148,9 @@ export function GuestVideoPlayer({ endpoint, uploadCode, photo, initialPoster = 
       {!isStarted && !error && <button aria-label={isPreparing ? 'Preparing video' : 'Play video'} className="guestVideoPlay" disabled={isPreparing} onClick={play} type="button">
         {isPreparing ? <LoaderCircle className="memorySpinner" size={29} aria-hidden="true" /> : <Play size={31} fill="currentColor" aria-hidden="true" />}
       </button>}
-      {isBuffering && isStarted && <span className="guestVideoBuffering" role="status"><LoaderCircle className="memorySpinner" size={28} aria-hidden="true" /><span className="srOnly">Loading video…</span></span>}
+      {isBuffering && isStarted && (hasPlayed
+        ? <span className="srOnly" role="status">Loading video…</span>
+        : <span className="guestVideoBuffering" role="status"><LoaderCircle className="memorySpinner" size={28} aria-hidden="true" /><span className="srOnly">Loading video…</span></span>)}
       {error && <div className="guestVideoError" role="alert"><p>{error}</p><button className="button secondary" onClick={() => { retryPoster(); setAttempt((current) => current + 1); }} type="button"><RotateCw size={16} aria-hidden="true" /> Try again</button></div>}
     </div>
   );

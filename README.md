@@ -127,6 +127,11 @@ Play. Its source, element and native controls stay in place while buffering and
 resuming. Only the open video is preloaded, and closing it cancels the stream.
 The thumbnail stays visible until playback begins, and both layers use the same
 bounds to avoid a blank flash or size jump while buffering.
+The custom buffering overlay appears only before the first playback, after a
+continuous half-second wait with insufficient data. Once playback begins, later
+buffering is left to the native player; a delayed screen-reader status still
+announces longer waits. Playback, readiness, pause and end events clear the status,
+so brief startup or seeking events do not flash an extra loading icon.
 
 The gallery checks for new memories
 about every 30 seconds while the page is visible and online, preserving photos

@@ -30,6 +30,10 @@ function replaceGlobal(name, value, saved) {
 }
 
 const settle = async () => { for (let index = 0; index < 12; index += 1) await Promise.resolve(); };
+const tick = async (t, duration) => {
+  await act(async () => { t.mock.timers.tick(duration); await settle(); });
+};
+const bufferingStatus = (harness) => harness.container.querySelector('[role="status"]');
 
 async function setup(t, { initialPoster = 'blob:existing-grid-thumbnail' } = {}) {
   const saved = new Map();
@@ -56,7 +60,7 @@ async function setup(t, { initialPoster = 'blob:existing-grid-thumbnail' } = {})
   document.createElement = (name, options) => {
     const element = createElement(name, options);
     if (name.toLowerCase() !== 'video') return element;
-    const media = { element, sourceChanges: [], playCalls: 0, pauseCalls: 0, loadCalls: 0 };
+    const media = { element, sourceChanges: [], playCalls: 0, pauseCalls: 0, loadCalls: 0, paused: true, ended: false, readyState: 3 };
     const setAttribute = element.setAttribute.bind(element);
     const removeAttribute = element.removeAttribute.bind(element);
     element.setAttribute = (attribute, value) => {
@@ -71,8 +75,11 @@ async function setup(t, { initialPoster = 'blob:existing-grid-thumbnail' } = {})
       configurable: true, get: () => element.getAttribute('src') || '',
       set: (value) => element.setAttribute('src', value),
     });
-    element.play = () => { media.playCalls += 1; return Promise.resolve(); };
-    element.pause = () => { media.pauseCalls += 1; };
+    for (const property of ['paused', 'ended', 'readyState']) {
+      Object.defineProperty(element, property, { configurable: true, get: () => media[property] });
+    }
+    element.play = () => { media.playCalls += 1; media.paused = false; return Promise.resolve(); };
+    element.pause = () => { media.pauseCalls += 1; media.paused = true; };
     element.load = () => { media.loadCalls += 1; };
     videos.push(media);
     return element;
@@ -140,18 +147,28 @@ test('video buffering, resume, and parent updates retain one native player and o
   const media = harness.videos[0];
   const source = media.element.getAttribute('src');
   assert.match(source, /\/video\?token=/);
+  t.mock.timers.enable({ apis: ['setTimeout'] });
   assertContinuousPlayer(harness, media, source);
   await harness.dispatch(harness.container.querySelector('.guestVideoPlay'), 'click');
   assert.equal(media.playCalls, 1);
   await harness.dispatch(media.element, 'playing');
   assert.equal(harness.container.querySelector('.guestVideoPoster'), null);
+  media.readyState = 2;
   await harness.dispatch(media.element, 'waiting');
-  assert.ok(harness.container.querySelector('.guestVideoBuffering'));
+  assert.equal(bufferingStatus(harness), null);
+  await tick(t, 250);
+  await harness.dispatch(media.element, 'waiting');
+  await tick(t, 249);
+  assert.equal(bufferingStatus(harness), null);
+  await tick(t, 1);
+  assert.equal(harness.container.querySelector('.guestVideoBuffering'), null, 'A stall must not overlay a video that has already played');
+  assert.ok(harness.container.querySelector('.srOnly[role="status"]'));
   await harness.render({ photo: { ...photo, guestName: 'Updated guest' }, onUnavailable: () => {}, initialPoster: 'blob:late-grid-thumbnail' });
   await harness.dispatch(media.element, 'progress');
   assertContinuousPlayer(harness, media, source);
+  media.readyState = 3;
   await harness.dispatch(media.element, 'playing');
-  assert.equal(harness.container.querySelector('.guestVideoBuffering'), null);
+  assert.equal(bufferingStatus(harness), null);
   assertContinuousPlayer(harness, media, source);
   assert.equal(media.playCalls, 1, 'Buffering resumes through the existing native play operation');
   await harness.unmount();
@@ -183,6 +200,127 @@ test('a thumbnail arriving after playback starts cannot reset the video source',
   assert.deepEqual(harness.revoked, ['blob:test-preview-1']);
   assert.equal(media.pauseCalls, 1);
   assert.equal(media.loadCalls, 1);
+});
+
+test('ready playback and spurious waiting do not show a custom loading indicator', async (t) => {
+  const harness = await setup(t);
+  await harness.resolveTicket();
+  const media = harness.videos[0];
+  const source = media.element.getAttribute('src');
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  await harness.dispatch(harness.container.querySelector('.guestVideoPlay'), 'click');
+  assert.equal(bufferingStatus(harness), null);
+  await tick(t, 1000);
+  assert.equal(bufferingStatus(harness), null);
+  await harness.dispatch(media.element, 'playing');
+  await harness.dispatch(media.element, 'waiting');
+  await tick(t, 1000);
+  assert.equal(bufferingStatus(harness), null);
+  assertContinuousPlayer(harness, media, source);
+});
+
+test('a sustained initial wait shows a delayed loader while retaining the poster and source', async (t) => {
+  const harness = await setup(t);
+  await harness.resolveTicket();
+  const media = harness.videos[0];
+  const source = media.element.getAttribute('src');
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  media.readyState = 2;
+  await harness.dispatch(harness.container.querySelector('.guestVideoPlay'), 'click');
+  assert.equal(bufferingStatus(harness), null);
+  await tick(t, 499);
+  assert.equal(bufferingStatus(harness), null);
+  await tick(t, 1);
+  assert.ok(harness.container.querySelector('.guestVideoBuffering'));
+  assert.ok(harness.container.querySelector('.guestVideoPoster'));
+  assertContinuousPlayer(harness, media, source);
+  media.readyState = 3;
+  await harness.dispatch(media.element, 'canplay');
+  assert.equal(bufferingStatus(harness), null);
+  await harness.dispatch(media.element, 'playing');
+  assert.equal(harness.container.querySelector('.guestVideoPoster'), null);
+  assertContinuousPlayer(harness, media, source);
+});
+
+test('brief waits do not flash and canplay clears a real stall without another playing event', async (t) => {
+  const harness = await setup(t);
+  await harness.resolveTicket();
+  const media = harness.videos[0];
+  const source = media.element.getAttribute('src');
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  await harness.dispatch(harness.container.querySelector('.guestVideoPlay'), 'click');
+  await harness.dispatch(media.element, 'playing');
+  media.readyState = 2;
+  await harness.dispatch(media.element, 'waiting');
+  await tick(t, 300);
+  media.readyState = 3;
+  await harness.dispatch(media.element, 'playing');
+  await tick(t, 1000);
+  assert.equal(bufferingStatus(harness), null);
+
+  media.readyState = 2;
+  await harness.dispatch(media.element, 'waiting');
+  await tick(t, 500);
+  assert.equal(harness.container.querySelector('.guestVideoBuffering'), null);
+  assert.ok(harness.container.querySelector('.srOnly[role="status"]'));
+  media.readyState = 3;
+  await harness.dispatch(media.element, 'canplay');
+  assert.equal(bufferingStatus(harness), null);
+  assertContinuousPlayer(harness, media, source);
+});
+
+test('waiting ignores paused and ended videos and rechecks readiness at the deadline', async (t) => {
+  const harness = await setup(t);
+  await harness.resolveTicket();
+  const media = harness.videos[0];
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  await harness.dispatch(harness.container.querySelector('.guestVideoPlay'), 'click');
+  await harness.dispatch(media.element, 'playing');
+  media.readyState = 2;
+  media.paused = true;
+  await harness.dispatch(media.element, 'waiting');
+  await tick(t, 500);
+  assert.equal(bufferingStatus(harness), null);
+  media.paused = false;
+  media.ended = true;
+  await harness.dispatch(media.element, 'waiting');
+  await tick(t, 500);
+  assert.equal(bufferingStatus(harness), null);
+  media.ended = false;
+  await harness.dispatch(media.element, 'waiting');
+  await tick(t, 300);
+  media.readyState = 3;
+  await tick(t, 200);
+  assert.equal(bufferingStatus(harness), null, 'Readiness is rechecked even when no readiness event arrives');
+});
+
+test('pause, end, errors, and cleanup cancel a pending loading indicator', async (t) => {
+  for (const event of ['pause', 'ended', 'error', 'cleanup']) {
+    await t.test(event, async (t) => {
+      const harness = await setup(t);
+      await harness.resolveTicket();
+      const media = harness.videos[0];
+      t.mock.timers.enable({ apis: ['setTimeout'] });
+      await harness.dispatch(harness.container.querySelector('.guestVideoPlay'), 'click');
+      await harness.dispatch(media.element, 'playing');
+      media.readyState = 2;
+      await harness.dispatch(media.element, 'waiting');
+      await tick(t, 200);
+      if (event === 'cleanup') await harness.unmount();
+      else {
+        if (event === 'pause') media.paused = true;
+        if (event === 'ended') media.ended = true;
+        await harness.dispatch(media.element, event);
+        // A later native state change must not revive the old waiting timer.
+        media.paused = false;
+        media.ended = false;
+      }
+      await tick(t, 1000);
+      assert.equal(bufferingStatus(harness), null);
+      assert.equal(media.loadCalls, event === 'cleanup' ? 1 : 0);
+      if (event === 'error') assert.ok(harness.container.querySelector('.guestVideoError'));
+    });
+  }
 });
 
 test('closing during ticket preparation cancels the request and ignores its late result', async (t) => {
