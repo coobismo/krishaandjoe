@@ -2,7 +2,7 @@ import { assetPath, NAV_LINKS } from '../data/wedding.js';
 
 export function Navigation({ page = 'home', countdownComplete = false }) {
   const links = page === 'memories'
-    ? [{ href: '/', label: 'Wedding' }]
+    ? [{ href: '/#details', label: 'Details' }, { href: '/#faq', label: 'FAQs' }]
     : NAV_LINKS.filter((link) => countdownComplete || !link.afterCountdown);
   return (
     <nav className="nav">

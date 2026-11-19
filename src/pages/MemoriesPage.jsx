@@ -31,7 +31,7 @@ export function MemoriesPage() {
       <Navigation page="memories" />
       <header className="memoriesPageHeader">
         <div>
-          <p className="eyebrow">Krisha & Joe</p>
+          <p className="eyebrow">Our Wedding</p>
           <h1>Memories</h1>
         </div>
         <button
