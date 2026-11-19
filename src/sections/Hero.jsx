@@ -1,6 +1,8 @@
 import { HERO } from '../data/wedding.js';
 
 export function Hero({ countdown }) {
+  const actions = countdown.isComplete ? [HERO.memoriesAction, ...HERO.actions] : HERO.actions;
+
   return (
     <section id="home" className="hero section">
       <div className="heroCard">
@@ -9,16 +11,14 @@ export function Hero({ countdown }) {
         </h1>
         <p className="date">{HERO.date}</p>
         <div className="heroActions">
-          {HERO.actions.map((action) => (
+          {actions.map((action) => (
             <a className={`button ${action.className}`} href={action.href} key={action.href}>
               {action.label}
             </a>
           ))}
         </div>
-        <div className="countdown" role="timer" aria-live="off" aria-label={countdown.label}>
-          {countdown.isComplete ? (
-            <p className="countdownMessage">{countdown.label}</p>
-          ) : (
+        {!countdown.isComplete && (
+          <div className="countdown" role="timer" aria-live="off" aria-label={countdown.label}>
             <div className="countdownUnits" aria-hidden="true">
               {['days', 'hours', 'minutes', 'seconds'].map((unit) => (
                 <div className="countdownUnit" key={unit}>
@@ -27,8 +27,8 @@ export function Hero({ countdown }) {
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </section>
   );

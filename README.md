@@ -9,7 +9,7 @@ A minimalist ivory-and-blue wedding website boilerplate for Krisha and Joe's wed
 - Our Story section
 - Subtle cat section for Cookie, Biscuit and Smores
 - Wedding details section
-- RSVP form wired for Google Sheets via Google Apps Script
+- Memories navigation and hero buttons appear when the wedding countdown ends; RSVP is closed
 - FAQ / must-knows section
 - Dedicated `/memories` page with guest photo/video uploads to Google Drive
 - Guest photo gallery with larger previews on the memories page
@@ -42,13 +42,16 @@ the password screen.
 - `src/data/wedding.js` stores wedding copy, RSVP settings, venue links, palettes, FAQs and image paths.
 - `src/sections/` contains one React component per page section.
 - `src/components/` contains shared UI pieces such as dropdowns, direction pickers and gratitude lists.
-- `src/features/rsvp/useRsvpForm.js` owns RSVP form state, submission and local backup behavior.
+- `src/features/rsvp/` retains the former RSVP integration for reference; the homepage no longer loads it.
 - `src/features/photos/` owns file validation, upload receipts, retries and upload queue state.
 - `src/pages/MemoriesPage.jsx` contains the dedicated guest memories page.
 - `memories/index.html` and `vite.config.js` provide a real static `/memories/` entry for GitHub Pages.
 - `src/hooks/` contains reusable React hooks.
 
-## RSVP Google Sheet setup
+## Archived RSVP Google Sheet setup
+
+RSVP is closed. The homepage no longer renders the form or links to it. The
+integration below is retained for reference; existing responses are preserved.
 
 The RSVP form posts to a Google Apps Script Web App, then keeps a browser `localStorage` backup.
 The included Apps Script targets this spreadsheet:
@@ -101,9 +104,11 @@ with the photos in the gallery. Existing photos can recover their original
 credit from a saved upload record or the uploader-generated Drive description
 when that information is still available.
 
-The homepage no longer mounts either feature. Its single **Memories** navigation
-link stays hidden until **November 21, 2026, at 12:00 AM in Asia/Manila**; that
-navigation schedule is configured in `src/features/photos/photoAvailability.mjs`.
+At **November 21, 2026, 2:00 PM in Asia/Manila**, the homepage countdown disappears
+and **Memories** appears in both the navigation and the hero, linking to the
+dedicated gallery page. The hero keeps **View Details** and shows no replacement
+countdown message. Both Memories links remain hidden before that time; direct
+visits to `/memories` still work at any time.
 
 The Vite build emits both `dist/index.html` and `dist/memories/index.html`, so
 direct visits work on GitHub Pages without a router fallback or another hosting
@@ -186,7 +191,8 @@ The simpler Apps Script backend remains available by explicitly setting
 `VITE_PHOTO_UPLOAD_PROVIDER=apps-script`. Its limits and setup follow below;
 these are not the Cloud Run limits.
 
-The **Memories** navigation link opens the dedicated page’s matching “Share your memories” section.
+The **Memories** navigation link opens the dedicated gallery page. **Add a memory**
+opens the upload dialog.
 Guests can select or drop up to 20 photos and short videos, with a 20 MB limit
 per file. Common camera formats, including HEIC/HEIF and MOV, are supported;
 the originals are uploaded without compression. Files are sent one at a time
@@ -264,5 +270,4 @@ above after deploying the Apps Script.
 
 - Add final ceremony and reception venue details
 - Add real engagement/prenup photos
-- Add an RSVP deadline
 - Replace placeholder text with your final invitation wording

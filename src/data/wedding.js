@@ -6,8 +6,7 @@ export const assetPath = (fileName) => `${import.meta.env.BASE_URL}${fileName}`;
 
 export const NAV_LINKS = [
   { href: '#details', label: 'Details' },
-  { href: '#rsvp', label: 'RSVP' },
-  { href: '/memories', label: 'Memories', guestPhotos: true },
+  { href: '/memories', label: 'Memories', afterCountdown: true },
   { href: '#faq', label: 'FAQs' },
 ];
 
@@ -26,9 +25,9 @@ export const HERO = {
   title: 'Our Next Chapter',
   date: 'November 21, 2026',
   actions: [
-    { href: '#rsvp', label: 'RSVP Now', className: 'primary' },
     { href: '#details', label: 'View Details', className: 'secondary' },
   ],
+  memoriesAction: { href: '/memories', label: 'Memories', className: 'primary' },
 };
 
 export const PRE_WEDDING = {

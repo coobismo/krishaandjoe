@@ -851,11 +851,6 @@ h2 {
   text-transform: uppercase;
 }
 
-.countdownMessage {
-  font-family: var(--font-serif);
-  font-size: 1.25rem;
-}
-
 .twoColumn,
 .rsvp {
   display: grid;

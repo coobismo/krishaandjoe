@@ -1,6 +1,4 @@
 import { useState } from 'react';
-import { useRsvpForm } from './features/rsvp/useRsvpForm.js';
-import { usePhotoAvailability } from './features/photos/usePhotoAvailability.js';
 import { useCountdown } from './hooks/useCountdown.js';
 import { DressCode } from './sections/DressCode.jsx';
 import { FaqSection } from './sections/FaqSection.jsx';
@@ -10,14 +8,11 @@ import { GratefulHearts } from './sections/GratefulHearts.jsx';
 import { Hero } from './sections/Hero.jsx';
 import { Navigation } from './sections/Navigation.jsx';
 import { PreWedding } from './sections/PreWedding.jsx';
-import { RsvpSection } from './sections/RsvpSection.jsx';
 import { WebsitePhoto } from './sections/WebsitePhoto.jsx';
 import { WeddingDetails } from './sections/WeddingDetails.jsx';
 
 export default function App() {
   const countdown = useCountdown();
-  const rsvp = useRsvpForm();
-  const showGuestPhotos = usePhotoAvailability();
   const [activeCat, setActiveCat] = useState(null);
   const [openDropdown, setOpenDropdown] = useState(null);
 
@@ -29,14 +24,9 @@ export default function App() {
     setOpenDropdown((current) => (current === name ? null : name));
   }
 
-  function submitRsvp(event) {
-    closeDropdown();
-    return rsvp.submitRsvp(event);
-  }
-
   return (
     <main>
-      <Navigation showGuestPhotos={showGuestPhotos} />
+      <Navigation countdownComplete={countdown.isComplete} />
       <Hero countdown={countdown} />
       <PreWedding />
       <WeddingDetails
@@ -48,17 +38,6 @@ export default function App() {
       <WebsitePhoto />
       <GratefulHearts />
       <Gifts activeCat={activeCat} onSelectCat={setActiveCat} />
-      <RsvpSection
-        form={rsvp.form}
-        isAttending={rsvp.isAttending}
-        onCloseDropdown={closeDropdown}
-        onSubmit={submitRsvp}
-        onToggleDropdown={toggleDropdown}
-        onUpdateField={rsvp.updateField}
-        onUpdateFormValue={rsvp.updateFormValue}
-        openDropdown={openDropdown}
-        submission={rsvp.submission}
-      />
       <FaqSection />
       <Footer />
     </main>

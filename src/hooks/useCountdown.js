@@ -14,7 +14,7 @@ export function useCountdown(targetDate = WEDDING_DATE) {
   const diff = targetDate.getTime() - now;
 
   if (diff <= 0) {
-    return { days: 0, hours: 0, minutes: 0, seconds: 0, isComplete: true, label: 'Today is the day' };
+    return { days: 0, hours: 0, minutes: 0, seconds: 0, isComplete: true, label: 'Countdown complete' };
   }
 
   const totalSeconds = Math.ceil(diff / SECOND_IN_MS);

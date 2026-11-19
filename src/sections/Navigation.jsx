@@ -1,9 +1,9 @@
 import { assetPath, NAV_LINKS } from '../data/wedding.js';
 
-export function Navigation({ showGuestPhotos = false, page = 'home' }) {
+export function Navigation({ page = 'home', countdownComplete = false }) {
   const links = page === 'memories'
     ? [{ href: '/', label: 'Wedding' }]
-    : NAV_LINKS.filter((link) => showGuestPhotos || !link.guestPhotos);
+    : NAV_LINKS.filter((link) => countdownComplete || !link.afterCountdown);
   return (
     <nav className="nav">
       <a href={page === 'memories' ? '/' : '#home'} className="brand">
